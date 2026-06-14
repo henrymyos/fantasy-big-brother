@@ -1,5 +1,7 @@
 # 👁️ Fantasy Big Brother
 
+**Live app: https://fantasy-big-brother-iota.vercel.app**
+
 A draft-and-track app for your family's annual Big Brother fantasy league. Draft
 the cast onto teams, log what happens each week with a configurable scoring
 system, mark houseguests as they get evicted, and watch the standings shift all
