@@ -8,6 +8,7 @@ import { HouseguestsPanel } from "@/components/HouseguestsPanel";
 import { DraftPanel } from "@/components/DraftPanel";
 import { ScoringPanel } from "@/components/ScoringPanel";
 import { SyncPanel } from "@/components/SyncPanel";
+import { ShareControls } from "@/components/ShareControls";
 import type { LeagueState } from "@/lib/types";
 
 type TabId = "standings" | "houseguests" | "draft" | "scoring" | "sync";
@@ -107,6 +108,11 @@ export default function Home() {
               }}
             />
           </div>
+        </div>
+
+        {/* Share / sync bar */}
+        <div className="max-w-6xl mx-auto px-4 pb-2">
+          <ShareControls />
         </div>
 
         {/* Tabs */}

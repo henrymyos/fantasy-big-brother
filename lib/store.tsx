@@ -12,6 +12,13 @@ import {
 import { defaultState, defaultTeams, TEAM_COLORS } from "./defaults";
 import { snakeOrder, teamOnTheClock } from "./scoring";
 import { nameKeys, weekFromDay, type WikiSeason } from "./wiki";
+import {
+  isSupabaseConfigured,
+  LEAGUES_TABLE,
+  parseLeagueId,
+  supabase,
+} from "./supabase";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import type {
   DraftPick,
   Houseguest,
@@ -40,6 +47,9 @@ function resolveRuleId(rules: ScoringRule[], concept: string): string | null {
 }
 
 const STORAGE_KEY = "fbb:league:v1";
+const LEAGUE_KEY = "fbb:leagueId";
+
+export type SyncStatus = "local" | "connecting" | "online" | "saving" | "error";
 
 function uid(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
@@ -77,6 +87,13 @@ interface StoreValue {
   // wikipedia sync
   importCastFromWiki: (names: string[]) => void;
   applyWikiSync: (season: WikiSeason) => void;
+  // shared-league (supabase) sync
+  supabaseEnabled: boolean;
+  leagueId: string | null;
+  syncStatus: SyncStatus;
+  createSharedLeague: () => Promise<void>;
+  joinLeague: (input: string) => Promise<boolean>;
+  leaveSharedLeague: () => void;
   // data management
   replaceState: (next: LeagueState) => void;
   resetAll: () => void;
@@ -100,31 +117,137 @@ function migrate(parsed: Partial<LeagueState>): LeagueState {
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<LeagueState>(defaultState);
   const [loaded, setLoaded] = useState(false);
-  const firstWrite = useRef(true);
+  const [leagueId, setLeagueId] = useState<string | null>(null);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>("local");
 
-  // Load once on mount.
-  useEffect(() => {
+  // JSON of the last state written-to or read-from the server, used to break
+  // the realtime echo loop (don't re-save what we just received, and ignore
+  // realtime events for our own writes).
+  const lastSyncedJson = useRef<string | null>(null);
+  const channelRef = useRef<RealtimeChannel | null>(null);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const updateUrl = useCallback((id: string | null) => {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) setState(migrate(JSON.parse(raw)));
+      const url = new URL(window.location.href);
+      if (id) url.searchParams.set("league", id);
+      else url.searchParams.delete("league");
+      window.history.replaceState({}, "", url.toString());
     } catch {
-      // ignore corrupt storage
+      // ignore
     }
-    setLoaded(true);
   }, []);
 
-  // Persist on change (skip the initial render before load).
+  // Subscribe to realtime changes for a league row.
+  const subscribeToLeague = useCallback((id: string) => {
+    if (!supabase) return;
+    if (channelRef.current) supabase.removeChannel(channelRef.current);
+    channelRef.current = supabase
+      .channel(`league:${id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: LEAGUES_TABLE,
+          filter: `id=eq.${id}`,
+        },
+        (payload) => {
+          const row = payload.new as { state?: LeagueState } | null;
+          if (!row?.state) return;
+          const incoming = JSON.stringify(row.state);
+          if (incoming === lastSyncedJson.current) return; // our own echo
+          lastSyncedJson.current = incoming;
+          setState(migrate(row.state));
+        },
+      )
+      .subscribe();
+  }, []);
+
+  // Load a league row from the server and start syncing it.
+  const loadLeague = useCallback(
+    async (id: string): Promise<boolean> => {
+      if (!supabase) return false;
+      setSyncStatus("connecting");
+      const { data, error } = await supabase
+        .from(LEAGUES_TABLE)
+        .select("state")
+        .eq("id", id)
+        .maybeSingle();
+      if (error || !data) {
+        setSyncStatus("error");
+        return false;
+      }
+      lastSyncedJson.current = JSON.stringify(data.state);
+      setState(migrate(data.state as LeagueState));
+      setLeagueId(id);
+      try {
+        localStorage.setItem(LEAGUE_KEY, id);
+      } catch {
+        // ignore
+      }
+      subscribeToLeague(id);
+      setSyncStatus("online");
+      return true;
+    },
+    [subscribeToLeague],
+  );
+
+  // Initial load: hydrate from local cache, then connect to a shared league
+  // if one is referenced by the URL or remembered locally.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) setState(migrate(JSON.parse(raw)));
+      } catch {
+        // ignore corrupt cache
+      }
+      let id: string | null = null;
+      try {
+        id =
+          new URLSearchParams(window.location.search).get("league") ||
+          localStorage.getItem(LEAGUE_KEY);
+      } catch {
+        // ignore
+      }
+      if (supabase && id) {
+        await loadLeague(id);
+      }
+      if (!cancelled) setLoaded(true);
+    })();
+    return () => {
+      cancelled = true;
+      if (channelRef.current && supabase)
+        supabase.removeChannel(channelRef.current);
+    };
+  }, [loadLeague]);
+
+  // Persist: always cache locally; debounce-push to the server when online.
   useEffect(() => {
     if (!loaded) return;
-    if (firstWrite.current) {
-      firstWrite.current = false;
-    }
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch {
       // ignore quota errors
     }
-  }, [state, loaded]);
+    if (!supabase || !leagueId) return;
+    const sb = supabase;
+    const json = JSON.stringify(state);
+    if (json === lastSyncedJson.current) return; // unchanged / inbound echo
+
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    setSyncStatus("saving");
+    saveTimer.current = setTimeout(async () => {
+      lastSyncedJson.current = json;
+      const { error } = await sb
+        .from(LEAGUES_TABLE)
+        .update({ state, updated_at: new Date().toISOString() })
+        .eq("id", leagueId);
+      setSyncStatus(error ? "error" : "online");
+    }, 600);
+  }, [state, loaded, leagueId]);
 
   const value = useMemo<StoreValue>(() => {
     const setSeasonName = (name: string) =>
@@ -342,6 +465,53 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         };
       });
 
+    const createSharedLeague = async () => {
+      if (!supabase) return;
+      setSyncStatus("connecting");
+      const { data, error } = await supabase
+        .from(LEAGUES_TABLE)
+        .insert({ name: state.seasonName, state })
+        .select("id")
+        .single();
+      if (error || !data) {
+        setSyncStatus("error");
+        return;
+      }
+      lastSyncedJson.current = JSON.stringify(state);
+      setLeagueId(data.id);
+      try {
+        localStorage.setItem(LEAGUE_KEY, data.id);
+      } catch {
+        // ignore
+      }
+      updateUrl(data.id);
+      subscribeToLeague(data.id);
+      setSyncStatus("online");
+    };
+
+    const joinLeague = async (input: string): Promise<boolean> => {
+      const id = parseLeagueId(input);
+      if (!id || !supabase) return false;
+      const ok = await loadLeague(id);
+      if (ok) updateUrl(id);
+      return ok;
+    };
+
+    const leaveSharedLeague = () => {
+      if (channelRef.current && supabase)
+        supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+      lastSyncedJson.current = null;
+      setLeagueId(null);
+      try {
+        localStorage.removeItem(LEAGUE_KEY);
+      } catch {
+        // ignore
+      }
+      updateUrl(null);
+      setSyncStatus("local");
+    };
+
     const replaceState = (next: LeagueState) => setState(migrate(next));
 
     const resetAll = () => setState(defaultState());
@@ -367,10 +537,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       removeEvent,
       importCastFromWiki,
       applyWikiSync,
+      supabaseEnabled: isSupabaseConfigured,
+      leagueId,
+      syncStatus,
+      createSharedLeague,
+      joinLeague,
+      leaveSharedLeague,
       replaceState,
       resetAll,
     };
-  }, [state, loaded]);
+  }, [state, loaded, leagueId, syncStatus, loadLeague, subscribeToLeague, updateUrl]);
 
   return (
     <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
