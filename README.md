@@ -90,11 +90,34 @@ to the full cast (including nicknames like _Cliffton "Will" Williams_).
   seasons 26 & 27). Much older seasons used different layouts and may import only
   partially. The preview shows exactly what will be applied before you commit.
 
-## Data & sharing
+## Shared, real-time league (Supabase backend)
 
-Your league is saved in the browser's `localStorage`, so it persists across
-visits on that device. Use **Export** in the header to download the league as a
-JSON file, and **Import** to load it on another device or share it with family.
+The header has a **Share with family** button. Click it once and the league is
+saved to a shared Supabase database and you get an invite link
+(`…/?league=<id>`). Anyone who opens that link joins the **same live league** —
+edits, draft picks, evictions and scores sync in real time across everyone's
+devices, no logins required. **Join** lets you paste an invite link to hop into
+an existing league.
+
+How it works:
+
+- The whole league state is stored as one JSON row in a `bb_leagues` table, with
+  Supabase **Realtime** broadcasting changes to everyone viewing it.
+- Leagues are shared by their unguessable `id` — open access policies keyed by
+  that id (no per-user auth), which suits a low-stakes family game with no
+  sensitive data. Edits are last-write-wins, which is fine for a handful of
+  editors.
+- If the `NEXT_PUBLIC_SUPABASE_*` env vars aren't set, the app silently falls
+  back to **local-only mode** (per-browser `localStorage`).
+
+Configure it by copying `.env.example` to `.env.local` and filling in your
+Supabase project URL and publishable (anon) key. The schema lives in
+`supabase/migrations/0001_bb_leagues.sql`.
+
+## Backup & portability
+
+Even in shared mode, **Export** downloads the league as a JSON file and
+**Import** loads one — handy for backups or starting a new season.
 
 ## Deploy
 
