@@ -1,36 +1,108 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 👁️ Fantasy Big Brother
 
-## Getting Started
+A draft-and-track app for your family's annual Big Brother fantasy league. Draft
+the cast onto teams, log what happens each week with a configurable scoring
+system, mark houseguests as they get evicted, and watch the standings shift all
+season long.
 
-First, run the development server:
+## Run it
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open the printed URL (e.g. http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## How it works
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The app has five tabs:
 
-## Learn More
+0. **Auto-sync** — pull the cast and live results straight from the season's
+   **Wikipedia page** instead of typing anything (see below).
+1. **Houseguests** — paste the cast (one name per line). As the season plays
+   out, set each person's status: _in the house → evicted / jury → runner-up /
+   winner_.
+2. **Draft** — set the number of teams and picks per team (defaults to 4×4),
+   name each team and owner, then run a **snake draft** (pick order reverses
+   each round). The app tracks who's on the clock; click a houseguest to draft
+   them.
+3. **Scoring** — log weekly events (e.g. "Alex — Win Head of Household, Week 3").
+   Points roll up to each houseguest and their team. The **scoring rules** are
+   fully editable — change any point value or add your own custom rules.
+4. **Standings** — live leaderboard. Each team's total is the sum of all points
+   their drafted houseguests have earned, with a per-team roster and progress
+   bar. Crowns the league winner once a houseguest is marked the Big Brother
+   champion.
 
-To learn more about Next.js, take a look at the following resources:
+### Default scoring system
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Event | Points |
+|---|---|
+| Win Head of Household | +10 |
+| Win Power of Veto | +8 |
+| Win other competition | +4 |
+| Win a special power / America's vote | +6 |
+| Saved off the block by veto | +4 |
+| Survive eviction while nominated | +5 |
+| Survive the week | +2 |
+| Make it to Jury | +5 |
+| Reach Final 3 | +10 |
+| Runner-up (Final 2) | +20 |
+| Win Big Brother | +40 |
+| America's Favorite Player | +10 |
+| Self-evict / expelled | −10 |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Tweak any of these on the Scoring tab — totals recalculate instantly.
 
-## Deploy on Vercel
+## Auto-sync from Wikipedia
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+The **Auto-sync** tab fetches the season's Wikipedia article (e.g. _Big Brother
+28 (American season)_) directly from the browser — no backend, no API key — and
+parses two tables:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Houseguests** → the full cast list, each person's final placement, and the
+  day they were evicted.
+- **Voting history** → every HOH, Power of Veto, and Block Buster competition
+  winner.
+
+From there you can:
+
+- **Import cast** — adds every houseguest so you never type the roster by hand.
+- **Sync results** — marks evictions/winner/runner-up and logs all the
+  competition wins as scoring events. It's **idempotent**: re-syncing replaces
+  the previous Wikipedia data without touching anything you logged manually.
+- **Keep in sync automatically** — re-pulls every 10 minutes while the tab is
+  open, so standings update on their own during the season.
+
+Enter just a number (`28`) for the US season, or paste any season's Wikipedia
+URL. Names from the voting grid are first-name-only and are fuzzily matched back
+to the full cast (including nicknames like _Cliffton "Will" Williams_).
+
+**Caveats worth knowing:**
+
+- There's no official Big Brother API and the live feeds are paid/closed, so
+  "live" means _as fast as Wikipedia's editors_ — typically within hours of an
+  episode, not the instant it happens on the feeds.
+- Parsing is tuned to the **current** Wikipedia table format (verified against
+  seasons 26 & 27). Much older seasons used different layouts and may import only
+  partially. The preview shows exactly what will be applied before you commit.
+
+## Data & sharing
+
+Your league is saved in the browser's `localStorage`, so it persists across
+visits on that device. Use **Export** in the header to download the league as a
+JSON file, and **Import** to load it on another device or share it with family.
+
+## Deploy
+
+This is a static Next.js app and deploys to Vercel with zero config:
+
+```bash
+npx vercel
+```
+
+## Tech
+
+Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS v4. All state is
+client-side — no database or backend required.
