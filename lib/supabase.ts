@@ -14,6 +14,13 @@ export const supabase: SupabaseClient | null =
 export const isSupabaseConfigured = Boolean(supabase);
 
 export const LEAGUES_TABLE = "bb_leagues";
+export const MEMBERS_TABLE = "bb_league_members";
+
+export interface LeagueMember {
+  user_id: string;
+  email: string | null;
+  role: string;
+}
 
 /** Pull a league id out of a raw input (a bare id or a full share URL). */
 export function parseLeagueId(input: string): string | null {

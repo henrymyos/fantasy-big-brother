@@ -15,8 +15,10 @@ import { nameKeys, weekFromDay, type WikiSeason } from "./wiki";
 import {
   isSupabaseConfigured,
   LEAGUES_TABLE,
+  MEMBERS_TABLE,
   parseLeagueId,
   supabase,
+  type LeagueMember,
 } from "./supabase";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import type {
@@ -87,13 +89,24 @@ interface StoreValue {
   // wikipedia sync
   importCastFromWiki: (names: string[]) => void;
   applyWikiSync: (season: WikiSeason) => void;
-  // shared-league (supabase) sync
+  // auth
   supabaseEnabled: boolean;
+  authReady: boolean;
+  user: { id: string; email: string } | null;
+  signUp: (email: string, password: string) => Promise<string | null>;
+  signIn: (email: string, password: string) => Promise<string | null>;
+  signOut: () => Promise<void>;
+  // shared-league (supabase) sync + ownership
   leagueId: string | null;
+  ownerId: string | null;
+  isOwner: boolean;
+  members: LeagueMember[];
   syncStatus: SyncStatus;
-  createSharedLeague: () => Promise<void>;
+  createSharedLeague: () => Promise<string | null>;
   joinLeague: (input: string) => Promise<boolean>;
-  leaveSharedLeague: () => void;
+  leaveSharedLeague: () => Promise<void>;
+  deleteLeague: () => Promise<void>;
+  removeMember: (userId: string) => Promise<void>;
   // data management
   replaceState: (next: LeagueState) => void;
   resetAll: () => void;
@@ -118,7 +131,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<LeagueState>(defaultState);
   const [loaded, setLoaded] = useState(false);
   const [leagueId, setLeagueId] = useState<string | null>(null);
+  const [ownerId, setOwnerId] = useState<string | null>(null);
+  const [members, setMembers] = useState<LeagueMember[]>([]);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("local");
+  const [user, setUser] = useState<{ id: string; email: string } | null>(null);
+  const [authReady, setAuthReady] = useState(!isSupabaseConfigured);
 
   // JSON of the last state written-to or read-from the server, used to break
   // the realtime echo loop (don't re-save what we just received, and ignore
@@ -126,6 +143,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const lastSyncedJson = useRef<string | null>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const userRef = useRef(user);
+  userRef.current = user;
+  const leagueIdRef = useRef(leagueId);
+  leagueIdRef.current = leagueId;
 
   const updateUrl = useCallback((id: string | null) => {
     try {
@@ -138,40 +159,67 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Subscribe to realtime changes for a league row.
-  const subscribeToLeague = useCallback((id: string) => {
+  const loadMembers = useCallback(async (id: string) => {
     if (!supabase) return;
-    if (channelRef.current) supabase.removeChannel(channelRef.current);
-    channelRef.current = supabase
-      .channel(`league:${id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: LEAGUES_TABLE,
-          filter: `id=eq.${id}`,
-        },
-        (payload) => {
-          const row = payload.new as { state?: LeagueState } | null;
-          if (!row?.state) return;
-          const incoming = JSON.stringify(row.state);
-          if (incoming === lastSyncedJson.current) return; // our own echo
-          lastSyncedJson.current = incoming;
-          setState(migrate(row.state));
-        },
-      )
-      .subscribe();
+    const { data } = await supabase
+      .from(MEMBERS_TABLE)
+      .select("user_id,email,role")
+      .eq("league_id", id);
+    setMembers((data as LeagueMember[]) ?? []);
   }, []);
 
-  // Load a league row from the server and start syncing it.
+  // Insert the current user as a member of a league (idempotent).
+  const ensureMembership = useCallback(async (id: string) => {
+    const u = userRef.current;
+    if (!supabase || !u) return;
+    await supabase
+      .from(MEMBERS_TABLE)
+      .upsert(
+        { league_id: id, user_id: u.id, email: u.email },
+        { onConflict: "league_id,user_id", ignoreDuplicates: true },
+      );
+  }, []);
+
+  // Subscribe to realtime changes for a league row + its membership.
+  const subscribeToLeague = useCallback(
+    (id: string) => {
+      if (!supabase) return;
+      if (channelRef.current) supabase.removeChannel(channelRef.current);
+      channelRef.current = supabase
+        .channel(`league:${id}`)
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: LEAGUES_TABLE, filter: `id=eq.${id}` },
+          (payload) => {
+            const row = payload.new as { state?: LeagueState } | null;
+            if (!row?.state) return;
+            const incoming = JSON.stringify(row.state);
+            if (incoming === lastSyncedJson.current) return; // our own echo
+            lastSyncedJson.current = incoming;
+            setState(migrate(row.state));
+          },
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: MEMBERS_TABLE, filter: `league_id=eq.${id}` },
+          () => {
+            loadMembers(id);
+          },
+        )
+        .subscribe();
+    },
+    [loadMembers],
+  );
+
+  // Load a league (member-gated) and start syncing it.
   const loadLeague = useCallback(
-    async (id: string): Promise<boolean> => {
-      if (!supabase) return false;
+    async (id: string, autoJoin = false): Promise<boolean> => {
+      if (!supabase || !userRef.current) return false;
       setSyncStatus("connecting");
+      if (autoJoin) await ensureMembership(id);
       const { data, error } = await supabase
         .from(LEAGUES_TABLE)
-        .select("state")
+        .select("state,owner_id")
         .eq("id", id)
         .maybeSingle();
       if (error || !data) {
@@ -181,48 +229,96 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       lastSyncedJson.current = JSON.stringify(data.state);
       setState(migrate(data.state as LeagueState));
       setLeagueId(id);
+      setOwnerId((data.owner_id as string) ?? null);
       try {
         localStorage.setItem(LEAGUE_KEY, id);
       } catch {
         // ignore
       }
       subscribeToLeague(id);
+      await loadMembers(id);
       setSyncStatus("online");
       return true;
     },
-    [subscribeToLeague],
+    [ensureMembership, subscribeToLeague, loadMembers],
   );
 
-  // Initial load: hydrate from local cache, then connect to a shared league
-  // if one is referenced by the URL or remembered locally.
+  const disconnectLeague = useCallback(() => {
+    if (channelRef.current && supabase) supabase.removeChannel(channelRef.current);
+    channelRef.current = null;
+    lastSyncedJson.current = null;
+    setLeagueId(null);
+    setOwnerId(null);
+    setMembers([]);
+    setSyncStatus("local");
+  }, []);
+
+  // On mount: hydrate local cache and resolve the auth session.
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (raw) setState(migrate(JSON.parse(raw)));
-      } catch {
-        // ignore corrupt cache
-      }
-      let id: string | null = null;
-      try {
-        id =
-          new URLSearchParams(window.location.search).get("league") ||
-          localStorage.getItem(LEAGUE_KEY);
-      } catch {
-        // ignore
-      }
-      if (supabase && id) {
-        await loadLeague(id);
-      }
-      if (!cancelled) setLoaded(true);
-    })();
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) setState(migrate(JSON.parse(raw)));
+    } catch {
+      // ignore corrupt cache
+    }
+    if (!supabase) {
+      setLoaded(true);
+      setAuthReady(true);
+      return;
+    }
+    const sb = supabase;
+    let active = true;
+    sb.auth.getSession().then(({ data }) => {
+      if (!active) return;
+      const s = data.session;
+      setUser(s?.user ? { id: s.user.id, email: s.user.email ?? "" } : null);
+      setAuthReady(true);
+      setLoaded(true);
+    });
+    const { data: sub } = sb.auth.onAuthStateChange((_e, session) => {
+      setUser(
+        session?.user
+          ? { id: session.user.id, email: session.user.email ?? "" }
+          : null,
+      );
+    });
     return () => {
-      cancelled = true;
-      if (channelRef.current && supabase)
-        supabase.removeChannel(channelRef.current);
+      active = false;
+      sub.subscription.unsubscribe();
+      if (channelRef.current) sb.removeChannel(channelRef.current);
     };
-  }, [loadLeague]);
+  }, []);
+
+  // Once auth is known, connect to a shared league referenced by the URL
+  // (auto-join) or remembered locally. Disconnect when signed out.
+  useEffect(() => {
+    if (!authReady || !supabase) return;
+    if (!user) {
+      if (leagueIdRef.current) disconnectLeague();
+      return;
+    }
+    let urlId: string | null = null;
+    let storedId: string | null = null;
+    try {
+      urlId = new URLSearchParams(window.location.search).get("league");
+      storedId = localStorage.getItem(LEAGUE_KEY);
+    } catch {
+      // ignore
+    }
+    const target = urlId || storedId;
+    if (!target || leagueIdRef.current === target) return;
+    (async () => {
+      const ok = await loadLeague(target, Boolean(urlId));
+      if (!ok && storedId && !urlId) {
+        try {
+          localStorage.removeItem(LEAGUE_KEY);
+        } catch {
+          // ignore
+        }
+        setSyncStatus("local");
+      }
+    })();
+  }, [authReady, user, loadLeague, disconnectLeague]);
 
   // Persist: always cache locally; debounce-push to the server when online.
   useEffect(() => {
@@ -465,20 +561,52 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         };
       });
 
-    const createSharedLeague = async () => {
+    const signUp = async (
+      email: string,
+      password: string,
+    ): Promise<string | null> => {
+      if (!supabase) return "Sign-in isn't configured.";
+      const { data, error } = await supabase.auth.signUp({ email, password });
+      if (error) return error.message;
+      if (!data.session)
+        return "Account created — check your email to confirm, then sign in.";
+      return null;
+    };
+
+    const signIn = async (
+      email: string,
+      password: string,
+    ): Promise<string | null> => {
+      if (!supabase) return "Sign-in isn't configured.";
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      return error ? error.message : null;
+    };
+
+    const signOut = async () => {
       if (!supabase) return;
+      updateUrl(null);
+      await supabase.auth.signOut();
+      // the auth-change effect disconnects the league and returns to local mode
+    };
+
+    const createSharedLeague = async (): Promise<string | null> => {
+      if (!supabase || !user) return null;
       setSyncStatus("connecting");
       const { data, error } = await supabase
         .from(LEAGUES_TABLE)
-        .insert({ name: state.seasonName, state })
-        .select("id")
+        .insert({ name: state.seasonName, state, owner_id: user.id })
+        .select("id,owner_id")
         .single();
       if (error || !data) {
         setSyncStatus("error");
-        return;
+        return null;
       }
       lastSyncedJson.current = JSON.stringify(state);
       setLeagueId(data.id);
+      setOwnerId((data.owner_id as string) ?? user.id);
       try {
         localStorage.setItem(LEAGUE_KEY, data.id);
       } catch {
@@ -486,30 +614,59 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       }
       updateUrl(data.id);
       subscribeToLeague(data.id);
+      await loadMembers(data.id);
       setSyncStatus("online");
+      return data.id;
     };
 
     const joinLeague = async (input: string): Promise<boolean> => {
       const id = parseLeagueId(input);
-      if (!id || !supabase) return false;
-      const ok = await loadLeague(id);
+      if (!id || !supabase || !user) return false;
+      const ok = await loadLeague(id, true);
       if (ok) updateUrl(id);
       return ok;
     };
 
-    const leaveSharedLeague = () => {
-      if (channelRef.current && supabase)
-        supabase.removeChannel(channelRef.current);
-      channelRef.current = null;
-      lastSyncedJson.current = null;
-      setLeagueId(null);
+    const leaveSharedLeague = async () => {
+      const id = leagueId;
+      if (supabase && user && id) {
+        await supabase
+          .from(MEMBERS_TABLE)
+          .delete()
+          .eq("league_id", id)
+          .eq("user_id", user.id);
+      }
       try {
         localStorage.removeItem(LEAGUE_KEY);
       } catch {
         // ignore
       }
       updateUrl(null);
-      setSyncStatus("local");
+      disconnectLeague();
+    };
+
+    const deleteLeague = async () => {
+      const id = leagueId;
+      if (supabase && user && id) {
+        await supabase.from(LEAGUES_TABLE).delete().eq("id", id);
+      }
+      try {
+        localStorage.removeItem(LEAGUE_KEY);
+      } catch {
+        // ignore
+      }
+      updateUrl(null);
+      disconnectLeague();
+    };
+
+    const removeMember = async (userId: string) => {
+      if (!supabase || !leagueId) return;
+      await supabase
+        .from(MEMBERS_TABLE)
+        .delete()
+        .eq("league_id", leagueId)
+        .eq("user_id", userId);
+      await loadMembers(leagueId);
     };
 
     const replaceState = (next: LeagueState) => setState(migrate(next));
@@ -538,15 +695,39 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       importCastFromWiki,
       applyWikiSync,
       supabaseEnabled: isSupabaseConfigured,
+      authReady,
+      user,
+      signUp,
+      signIn,
+      signOut,
       leagueId,
+      ownerId,
+      isOwner: Boolean(ownerId && user && ownerId === user.id),
+      members,
       syncStatus,
       createSharedLeague,
       joinLeague,
       leaveSharedLeague,
+      deleteLeague,
+      removeMember,
       replaceState,
       resetAll,
     };
-  }, [state, loaded, leagueId, syncStatus, loadLeague, subscribeToLeague, updateUrl]);
+  }, [
+    state,
+    loaded,
+    leagueId,
+    ownerId,
+    members,
+    syncStatus,
+    user,
+    authReady,
+    loadLeague,
+    subscribeToLeague,
+    loadMembers,
+    disconnectLeague,
+    updateUrl,
+  ]);
 
   return (
     <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
