@@ -90,29 +90,28 @@ to the full cast (including nicknames like _Cliffton "Will" Williams_).
   seasons 26 & 27). Much older seasons used different layouts and may import only
   partially. The preview shows exactly what will be applied before you commit.
 
-## Shared, real-time league (Supabase backend)
+## Accounts, shared leagues & ownership (Supabase backend)
 
-The header has a **Share with family** button. Click it once and the league is
-saved to a shared Supabase database and you get an invite link
-(`…/?league=<id>`). Anyone who opens that link joins the **same live league** —
-edits, draft picks, evictions and scores sync in real time across everyone's
-devices, no logins required. **Join** lets you paste an invite link to hop into
-an existing league.
+Sign in (email + password) from the header, then click **Share with family** to
+create a league. You get an invite link (`…/?league=<id>`); anyone who signs in
+and opens it **joins the same live league** — draft picks, evictions and scores
+sync in real time across everyone's devices.
 
-How it works:
+- **Private to members.** Only signed-in members of a league can read or edit it
+  — leagues are not publicly readable.
+- **Ownership.** The creator owns the league: they can **delete** it and
+  **remove members**. Members can view and edit; **Join** adds you via an invite
+  link; **Leave** removes you.
+- **Real-time.** League state lives as one JSON row in `bb_leagues` (membership in
+  `bb_league_members`), with Supabase **Realtime** broadcasting changes. Edits
+  are last-write-wins, which is fine for a family-sized group.
+- **Local fallback.** Without sign-in (or without the `NEXT_PUBLIC_SUPABASE_*`
+  env vars) the app runs in **local-only mode** (per-browser `localStorage`).
 
-- The whole league state is stored as one JSON row in a `bb_leagues` table, with
-  Supabase **Realtime** broadcasting changes to everyone viewing it.
-- Leagues are shared by their unguessable `id` — open access policies keyed by
-  that id (no per-user auth), which suits a low-stakes family game with no
-  sensitive data. Edits are last-write-wins, which is fine for a handful of
-  editors.
-- If the `NEXT_PUBLIC_SUPABASE_*` env vars aren't set, the app silently falls
-  back to **local-only mode** (per-browser `localStorage`).
-
-Configure it by copying `.env.example` to `.env.local` and filling in your
-Supabase project URL and publishable (anon) key. The schema lives in
-`supabase/migrations/0001_bb_leagues.sql`.
+Configure by copying `.env.example` to `.env.local` with your Supabase project
+URL and publishable (anon) key. Schema: `supabase/migrations/` (`0001` creates
+the table, `0002` adds auth + ownership). Email confirmation is disabled so
+sign-up is instant; row-level security gates every read/write by membership.
 
 ## Backup & portability
 
