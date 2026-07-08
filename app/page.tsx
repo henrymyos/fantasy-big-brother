@@ -1,56 +1,55 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useStore } from "@/lib/store";
 import { Button } from "@/components/ui";
 import { StandingsPanel } from "@/components/StandingsPanel";
 import { HouseguestsPanel } from "@/components/HouseguestsPanel";
 import { DraftPanel } from "@/components/DraftPanel";
 import { ScoringPanel } from "@/components/ScoringPanel";
-import { SyncPanel } from "@/components/SyncPanel";
-import { ShareControls } from "@/components/ShareControls";
-import type { LeagueState } from "@/lib/types";
 
-type TabId = "standings" | "houseguests" | "draft" | "scoring" | "sync";
+type TabId = "standings" | "houseguests" | "draft" | "scoring";
 
 const TABS: { id: TabId; label: string; icon: string }[] = [
   { id: "standings", label: "Standings", icon: "🏆" },
   { id: "houseguests", label: "Houseguests", icon: "🏠" },
   { id: "draft", label: "Draft", icon: "📋" },
   { id: "scoring", label: "Scoring", icon: "⭐" },
-  { id: "sync", label: "Auto-sync", icon: "🔄" },
 ];
 
+function statusLine(
+  supabaseEnabled: boolean,
+  syncStatus: string,
+  wikiSyncedAt: number | null,
+  wikiError: string | null,
+): string {
+  const shared = !supabaseEnabled
+    ? "saved in this browser"
+    : syncStatus === "error"
+      ? "sync error — retrying"
+      : syncStatus === "connecting"
+        ? "connecting…"
+        : "live for the whole family";
+  const wiki = wikiError
+    ? "Wikipedia check failed — retrying"
+    : wikiSyncedAt
+      ? "results auto-update from Wikipedia"
+      : "checking Wikipedia…";
+  return `${shared} · ${wiki}`;
+}
+
 export default function Home() {
-  const { state, loaded, setSeasonName, replaceState, resetAll } = useStore();
+  const {
+    state,
+    loaded,
+    setSeasonName,
+    resetAll,
+    supabaseEnabled,
+    syncStatus,
+    wikiSyncedAt,
+    wikiError,
+  } = useStore();
   const [tab, setTab] = useState<TabId>("standings");
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  const exportData = () => {
-    const blob = new Blob([JSON.stringify(state, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${state.seasonName.replace(/\s+/g, "-").toLowerCase()}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const importData = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const parsed = JSON.parse(String(reader.result)) as LeagueState;
-        replaceState(parsed);
-        alert("League imported successfully.");
-      } catch {
-        alert("That file could not be read as a league export.");
-      }
-    };
-    reader.readAsText(file);
-  };
 
   return (
     <div className="flex flex-col min-h-dvh">
@@ -67,52 +66,31 @@ export default function Home() {
               className="bg-transparent text-lg font-bold tracking-tight outline-none focus:underline w-full"
               aria-label="Season name"
             />
-            <p className="text-xs text-[var(--muted)]">
-              Fantasy Big Brother · saved in this browser
+            <p className="text-xs text-[var(--muted)] flex items-center gap-1.5">
+              <span
+                className={`inline-block size-1.5 rounded-full ${
+                  supabaseEnabled && syncStatus !== "error"
+                    ? "bg-emerald-400"
+                    : "bg-amber-400"
+                }`}
+              />
+              {statusLine(supabaseEnabled, syncStatus, wikiSyncedAt, wikiError)}
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={exportData}>
-              Export
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => fileRef.current?.click()}
-            >
-              Import
-            </Button>
-            <Button
-              variant="danger"
-              size="sm"
-              onClick={() => {
-                if (
-                  confirm(
-                    "Reset the entire league? This clears teams, cast, draft and scores.",
-                  )
+          <Button
+            variant="danger"
+            size="sm"
+            onClick={() => {
+              if (
+                confirm(
+                  "Reset the entire league — for everyone in the family? This clears teams, cast, draft and scores.",
                 )
-                  resetAll();
-              }}
-            >
-              Reset
-            </Button>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="application/json"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) importData(f);
-                e.target.value = "";
-              }}
-            />
-          </div>
-        </div>
-
-        {/* Share / sync bar */}
-        <div className="max-w-6xl mx-auto px-4 pb-2">
-          <ShareControls />
+              )
+                resetAll();
+            }}
+          >
+            Reset
+          </Button>
         </div>
 
         {/* Tabs */}
@@ -146,14 +124,13 @@ export default function Home() {
             {tab === "houseguests" && <HouseguestsPanel />}
             {tab === "draft" && <DraftPanel />}
             {tab === "scoring" && <ScoringPanel />}
-            {tab === "sync" && <SyncPanel />}
           </>
         )}
       </main>
 
       <footer className="border-t border-[var(--border)] py-4 text-center text-xs text-[var(--muted)]">
-        Draft houseguests · log weekly events · watch the standings shift all
-        season.
+        Draft houseguests · results sync themselves · watch the standings shift
+        all season.
       </footer>
     </div>
   );

@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useStore } from "@/lib/store";
-import { SAMPLE_NAMES } from "@/lib/defaults";
 import { computeHouseguestScores, houseguestStatLine } from "@/lib/scoring";
 import type { HouseguestStatus } from "@/lib/types";
 import {
@@ -60,36 +59,34 @@ export function HouseguestsPanel() {
     <div className="grid lg:grid-cols-[340px_1fr] gap-5 items-start">
       <Card>
         <SectionTitle
-          title="Add houseguests"
-          subtitle="Paste the cast — one name per line or comma-separated."
+          title="The house"
+          subtitle="The cast, photos, evictions and comp wins all sync themselves from Wikipedia."
         />
-        <textarea
-          value={bulk}
-          onChange={(e) => setBulk(e.target.value)}
-          placeholder={"Alex\nBrianna\nCarlos"}
-          rows={8}
-          className="w-full rounded-lg bg-[var(--surface-2)] border border-[var(--border)] px-3 py-2 text-sm outline-none focus:border-accent placeholder:text-[var(--muted)] resize-y"
-        />
-        <div className="flex gap-2 mt-3">
-          <Button variant="primary" onClick={submit} disabled={!bulk.trim()}>
-            Add to cast
-          </Button>
-          <Button
-            variant="ghost"
-            onClick={() => setBulk(SAMPLE_NAMES.join("\n"))}
-          >
-            Use sample cast
-          </Button>
-        </div>
-        <p className="text-xs text-[var(--muted)] mt-3">
+        <p className="text-sm text-[var(--muted)]">
           {state.houseguests.length} houseguests ·{" "}
           {state.houseguests.filter((h) => h.status === "active").length} still
           in the house
         </p>
-        <p className="text-xs text-[var(--muted)] mt-2">
-          Photos are found automatically on the Big Brother fan wiki — use full
-          names (e.g. from Auto-sync) so the right person matches.
-        </p>
+        <details className="mt-4">
+          <summary className="text-xs text-[var(--muted)] cursor-pointer select-none hover:text-foreground">
+            Add someone manually
+          </summary>
+          <textarea
+            value={bulk}
+            onChange={(e) => setBulk(e.target.value)}
+            placeholder={"One name per line"}
+            rows={4}
+            className="w-full mt-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] px-3 py-2 text-sm outline-none focus:border-accent placeholder:text-[var(--muted)] resize-y"
+          />
+          <Button
+            variant="primary"
+            className="mt-2"
+            onClick={submit}
+            disabled={!bulk.trim()}
+          >
+            Add to cast
+          </Button>
+        </details>
       </Card>
 
       <Card>

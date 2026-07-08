@@ -14,27 +14,9 @@ export const supabase: SupabaseClient | null =
 export const isSupabaseConfigured = Boolean(supabase);
 
 export const LEAGUES_TABLE = "bb_leagues";
-export const MEMBERS_TABLE = "bb_league_members";
 
-export interface LeagueMember {
-  user_id: string;
-  email: string | null;
-  role: string;
-}
-
-/** Pull a league id out of a raw input (a bare id or a full share URL). */
-export function parseLeagueId(input: string): string | null {
-  const trimmed = input.trim();
-  if (!trimmed) return null;
-  try {
-    const url = new URL(trimmed);
-    const fromQuery = url.searchParams.get("league");
-    if (fromQuery) return fromQuery;
-  } catch {
-    // not a URL — fall through
-  }
-  const uuid = trimmed.match(
-    /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i,
-  );
-  return uuid ? uuid[0] : trimmed;
-}
+/**
+ * The single family league. No accounts, no invites: every client reads and
+ * writes this one well-known row, and realtime keeps all devices in sync.
+ */
+export const FAMILY_LEAGUE_ID = "00000000-0000-4000-8000-000000000028";

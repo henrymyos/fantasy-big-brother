@@ -2,7 +2,6 @@
 
 import {
   createContext,
-  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -12,14 +11,17 @@ import {
 import { defaultState, defaultTeams, TEAM_COLORS } from "./defaults";
 import { fetchHouseguestPhoto } from "./photos";
 import { snakeOrder, teamOnTheClock } from "./scoring";
-import { nameKeys, weekFromDay, type WikiSeason } from "./wiki";
 import {
+  fetchSeason,
+  nameKeys,
+  weekFromDay,
+  type WikiSeason,
+} from "./wiki";
+import {
+  FAMILY_LEAGUE_ID,
   isSupabaseConfigured,
   LEAGUES_TABLE,
-  MEMBERS_TABLE,
-  parseLeagueId,
   supabase,
-  type LeagueMember,
 } from "./supabase";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import type {
@@ -31,6 +33,10 @@ import type {
   ScoringRule,
   Team,
 } from "./types";
+
+/** The one season this app tracks; syncs from Wikipedia in the background. */
+const WIKI_SEASON = "Big Brother 28 (American season)";
+const WIKI_SYNC_INTERVAL_MS = 5 * 60_000;
 
 /** Map a sync concept onto a scoring rule (by id, falling back to label). */
 const RULE_CONCEPTS: Record<string, { id: string; re: RegExp }> = {
@@ -50,12 +56,123 @@ function resolveRuleId(rules: ScoringRule[], concept: string): string | null {
 }
 
 const STORAGE_KEY = "fbb:league:v1";
-const LEAGUE_KEY = "fbb:leagueId";
 
 export type SyncStatus = "local" | "connecting" | "online" | "saving" | "error";
 
 function uid(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+/**
+ * Deterministic id for a wiki-imported houseguest, so every family device
+ * derives the same state from the same Wikipedia data instead of fighting
+ * over random ids.
+ */
+function hgIdForName(name: string): string {
+  return (
+    "hg-" +
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 40)
+  );
+}
+
+/**
+ * Fold a fetched Wikipedia season into the league: add any cast members we
+ * don't have yet, update statuses, and rebuild the wiki-sourced scoring
+ * events. Fully deterministic (stable ids, stable order) and returns the
+ * SAME state object when nothing changed, so a no-op sync causes no
+ * re-render and no server write.
+ */
+function applyWikiSeason(s: LeagueState, season: WikiSeason): LeagueState {
+  const existingNames = new Set(
+    s.houseguests.map((h) => h.name.toLowerCase().trim()),
+  );
+  const usedIds = new Set(s.houseguests.map((h) => h.id));
+  const additions: Houseguest[] = [];
+  for (const c of season.cast) {
+    const name = c.name.trim();
+    if (!name || existingNames.has(name.toLowerCase())) continue;
+    const id = hgIdForName(name);
+    if (usedIds.has(id)) continue; // slug collision — leave for manual entry
+    usedIds.add(id);
+    existingNames.add(name.toLowerCase());
+    additions.push({ id, name, status: "active", exitWeek: null });
+  }
+  const houseguests = additions.length
+    ? [...s.houseguests, ...additions]
+    : s.houseguests;
+
+  // Key → houseguest index for fuzzy first-name matching (the voting grid
+  // uses first names / nicknames only).
+  const index: Record<string, string> = {};
+  for (const hg of houseguests) {
+    for (const k of nameKeys(hg.name)) {
+      if (!(k in index)) index[k] = hg.id;
+    }
+  }
+  const matchId = (name: string): string | null => {
+    for (const k of nameKeys(name)) if (index[k]) return index[k];
+    return null;
+  };
+
+  // Statuses from the cast table.
+  const statusById: Record<
+    string,
+    { status: HouseguestStatus; exitWeek: number | null }
+  > = {};
+  for (const c of season.cast) {
+    const id = matchId(c.name);
+    if (!id) continue;
+    statusById[id] = {
+      status: c.status,
+      exitWeek: c.status === "active" ? null : weekFromDay(c.day),
+    };
+  }
+  const nextHouseguests = houseguests.map((h) =>
+    statusById[h.id] ? { ...h, ...statusById[h.id] } : h,
+  );
+
+  // Rebuild wiki-sourced scoring events (idempotent re-sync).
+  const manual = s.events.filter((e) => e.source !== "wiki");
+  const wikiEvents: ScoreEvent[] = [];
+  const seenIds = new Set<string>();
+  const push = (name: string, concept: string, week: number) => {
+    const hgId = matchId(name);
+    if (!hgId) return;
+    const ruleId = resolveRuleId(s.rules, concept);
+    if (!ruleId) return;
+    let id = `ev-wiki-${concept}-w${week}-${hgId}`;
+    for (let n = 2; seenIds.has(id); n++) {
+      id = `ev-wiki-${concept}-w${week}-${hgId}-${n}`;
+    }
+    seenIds.add(id);
+    wikiEvents.push({
+      id,
+      houseguestId: hgId,
+      ruleId,
+      week: Math.max(1, week),
+      source: "wiki",
+    });
+  };
+  season.hohWins.forEach((n, i) => push(n, "hoh", i + 1));
+  season.vetoWins.forEach((n, i) => push(n, "veto", i + 1));
+  season.otherCompWins.forEach((n, i) => push(n, "comp", i + 1));
+  const finaleWeek = Math.max(1, season.hohWins.length);
+  if (season.winner) push(season.winner, "winner", finaleWeek);
+  if (season.runnerUp) push(season.runnerUp, "runnerup", finaleWeek);
+  if (season.americasFavorite)
+    push(season.americasFavorite, "afp", finaleWeek);
+
+  const next: LeagueState = {
+    ...s,
+    houseguests: nextHouseguests,
+    events: [...manual, ...wikiEvents],
+    currentWeek: Math.max(s.currentWeek, season.hohWins.length || 1),
+  };
+  return JSON.stringify(next) === JSON.stringify(s) ? s : next;
 }
 
 interface StoreValue {
@@ -87,29 +204,12 @@ interface StoreValue {
   // events
   addEvent: (event: Omit<ScoreEvent, "id">) => void;
   removeEvent: (id: string) => void;
-  // wikipedia sync
-  importCastFromWiki: (names: string[]) => void;
-  applyWikiSync: (season: WikiSeason) => void;
-  // auth
+  // sync
   supabaseEnabled: boolean;
-  authReady: boolean;
-  user: { id: string; email: string } | null;
-  signUp: (email: string, password: string) => Promise<string | null>;
-  signIn: (email: string, password: string) => Promise<string | null>;
-  signOut: () => Promise<void>;
-  // shared-league (supabase) sync + ownership
-  leagueId: string | null;
-  ownerId: string | null;
-  isOwner: boolean;
-  members: LeagueMember[];
   syncStatus: SyncStatus;
-  createSharedLeague: () => Promise<string | null>;
-  joinLeague: (input: string) => Promise<boolean>;
-  leaveSharedLeague: () => Promise<void>;
-  deleteLeague: () => Promise<void>;
-  removeMember: (userId: string) => Promise<void>;
+  wikiSyncedAt: number | null;
+  wikiError: string | null;
   // data management
-  replaceState: (next: LeagueState) => void;
   resetAll: () => void;
 }
 
@@ -131,12 +231,10 @@ function migrate(parsed: Partial<LeagueState>): LeagueState {
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<LeagueState>(defaultState);
   const [loaded, setLoaded] = useState(false);
-  const [leagueId, setLeagueId] = useState<string | null>(null);
-  const [ownerId, setOwnerId] = useState<string | null>(null);
-  const [members, setMembers] = useState<LeagueMember[]>([]);
+  const [connected, setConnected] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("local");
-  const [user, setUser] = useState<{ id: string; email: string } | null>(null);
-  const [authReady, setAuthReady] = useState(!isSupabaseConfigured);
+  const [wikiSyncedAt, setWikiSyncedAt] = useState<number | null>(null);
+  const [wikiError, setWikiError] = useState<string | null>(null);
 
   // JSON of the last state written-to or read-from the server, used to break
   // the realtime echo loop (don't re-save what we just received, and ignore
@@ -144,117 +242,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const lastSyncedJson = useRef<string | null>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const userRef = useRef(user);
-  userRef.current = user;
-  const leagueIdRef = useRef(leagueId);
-  leagueIdRef.current = leagueId;
+  const stateRef = useRef(state);
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
-  const updateUrl = useCallback((id: string | null) => {
-    try {
-      const url = new URL(window.location.href);
-      if (id) url.searchParams.set("league", id);
-      else url.searchParams.delete("league");
-      window.history.replaceState({}, "", url.toString());
-    } catch {
-      // ignore
-    }
-  }, []);
-
-  const loadMembers = useCallback(async (id: string) => {
-    if (!supabase) return;
-    const { data } = await supabase
-      .from(MEMBERS_TABLE)
-      .select("user_id,email,role")
-      .eq("league_id", id);
-    setMembers((data as LeagueMember[]) ?? []);
-  }, []);
-
-  // Insert the current user as a member of a league (idempotent).
-  const ensureMembership = useCallback(async (id: string) => {
-    const u = userRef.current;
-    if (!supabase || !u) return;
-    await supabase
-      .from(MEMBERS_TABLE)
-      .upsert(
-        { league_id: id, user_id: u.id, email: u.email },
-        { onConflict: "league_id,user_id", ignoreDuplicates: true },
-      );
-  }, []);
-
-  // Subscribe to realtime changes for a league row + its membership.
-  const subscribeToLeague = useCallback(
-    (id: string) => {
-      if (!supabase) return;
-      if (channelRef.current) supabase.removeChannel(channelRef.current);
-      channelRef.current = supabase
-        .channel(`league:${id}`)
-        .on(
-          "postgres_changes",
-          { event: "*", schema: "public", table: LEAGUES_TABLE, filter: `id=eq.${id}` },
-          (payload) => {
-            const row = payload.new as { state?: LeagueState } | null;
-            if (!row?.state) return;
-            const incoming = JSON.stringify(row.state);
-            if (incoming === lastSyncedJson.current) return; // our own echo
-            lastSyncedJson.current = incoming;
-            setState(migrate(row.state));
-          },
-        )
-        .on(
-          "postgres_changes",
-          { event: "*", schema: "public", table: MEMBERS_TABLE, filter: `league_id=eq.${id}` },
-          () => {
-            loadMembers(id);
-          },
-        )
-        .subscribe();
-    },
-    [loadMembers],
-  );
-
-  // Load a league (member-gated) and start syncing it.
-  const loadLeague = useCallback(
-    async (id: string, autoJoin = false): Promise<boolean> => {
-      if (!supabase || !userRef.current) return false;
-      setSyncStatus("connecting");
-      if (autoJoin) await ensureMembership(id);
-      const { data, error } = await supabase
-        .from(LEAGUES_TABLE)
-        .select("state,owner_id")
-        .eq("id", id)
-        .maybeSingle();
-      if (error || !data) {
-        setSyncStatus("error");
-        return false;
-      }
-      lastSyncedJson.current = JSON.stringify(data.state);
-      setState(migrate(data.state as LeagueState));
-      setLeagueId(id);
-      setOwnerId((data.owner_id as string) ?? null);
-      try {
-        localStorage.setItem(LEAGUE_KEY, id);
-      } catch {
-        // ignore
-      }
-      subscribeToLeague(id);
-      await loadMembers(id);
-      setSyncStatus("online");
-      return true;
-    },
-    [ensureMembership, subscribeToLeague, loadMembers],
-  );
-
-  const disconnectLeague = useCallback(() => {
-    if (channelRef.current && supabase) supabase.removeChannel(channelRef.current);
-    channelRef.current = null;
-    lastSyncedJson.current = null;
-    setLeagueId(null);
-    setOwnerId(null);
-    setMembers([]);
-    setSyncStatus("local");
-  }, []);
-
-  // On mount: hydrate local cache and resolve the auth session.
+  // On mount: hydrate the local cache.
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -262,76 +255,119 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // ignore corrupt cache
     }
-    if (!supabase) {
-      setLoaded(true);
-      setAuthReady(true);
-      return;
-    }
-    const sb = supabase;
-    let active = true;
-    sb.auth.getSession().then(({ data }) => {
-      if (!active) return;
-      const s = data.session;
-      setUser(s?.user ? { id: s.user.id, email: s.user.email ?? "" } : null);
-      setAuthReady(true);
-      setLoaded(true);
-    });
-    const { data: sub } = sb.auth.onAuthStateChange((_e, session) => {
-      setUser(
-        session?.user
-          ? { id: session.user.id, email: session.user.email ?? "" }
-          : null,
-      );
-    });
-    return () => {
-      active = false;
-      sub.subscription.unsubscribe();
-      if (channelRef.current) sb.removeChannel(channelRef.current);
-    };
+    setLoaded(true);
   }, []);
 
-  // Once auth is known, connect to a shared league referenced by the URL
-  // (auto-join) or remembered locally. Disconnect when signed out.
+  // Connect to the one family league: load it (seeding the row on the very
+  // first visit), then subscribe to realtime changes from other devices.
   useEffect(() => {
-    if (!authReady || !supabase) return;
-    if (!user) {
-      if (leagueIdRef.current) disconnectLeague();
-      return;
-    }
-    let urlId: string | null = null;
-    let storedId: string | null = null;
-    try {
-      urlId = new URLSearchParams(window.location.search).get("league");
-      storedId = localStorage.getItem(LEAGUE_KEY);
-    } catch {
-      // ignore
-    }
-    const target = urlId || storedId;
-    if (!target || leagueIdRef.current === target) return;
-    (async () => {
-      const ok = await loadLeague(target, Boolean(urlId));
-      if (!ok && storedId && !urlId) {
-        try {
-          localStorage.removeItem(LEAGUE_KEY);
-        } catch {
-          // ignore
-        }
-        setSyncStatus("local");
-      }
-    })();
-  }, [authReady, user, loadLeague, disconnectLeague]);
+    if (!loaded || !supabase) return;
+    const sb = supabase;
+    let active = true;
 
-  // Look up cast photos on the fandom wiki for houseguests that have never
-  // been checked (photoUrl undefined). One attempt per id+name per session;
-  // a recorded miss (null) is permanent so renames don't refetch forever.
+    (async () => {
+      setSyncStatus("connecting");
+      const read = async () =>
+        (
+          await sb
+            .from(LEAGUES_TABLE)
+            .select("state")
+            .eq("id", FAMILY_LEAGUE_ID)
+            .maybeSingle()
+        ).data as { state: LeagueState } | null;
+
+      let row = await read();
+      if (!row) {
+        // First device ever: seed the shared row with whatever we have.
+        // A same-moment race on another device is harmless — duplicates are
+        // ignored and we re-read whichever seed won.
+        await sb.from(LEAGUES_TABLE).upsert(
+          {
+            id: FAMILY_LEAGUE_ID,
+            name: "Big Brother 28 Family League",
+            state: stateRef.current,
+          },
+          { onConflict: "id", ignoreDuplicates: true },
+        );
+        row = await read();
+      }
+      if (!active) return;
+      if (!row?.state) {
+        setSyncStatus("error");
+        return;
+      }
+      lastSyncedJson.current = JSON.stringify(row.state);
+      setState(migrate(row.state));
+
+      channelRef.current = sb
+        .channel("family-league")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: LEAGUES_TABLE,
+            filter: `id=eq.${FAMILY_LEAGUE_ID}`,
+          },
+          (payload) => {
+            const incoming = payload.new as { state?: LeagueState } | null;
+            if (!incoming?.state) return;
+            const json = JSON.stringify(incoming.state);
+            if (json === lastSyncedJson.current) return; // our own echo
+            lastSyncedJson.current = json;
+            setState(migrate(incoming.state));
+          },
+        )
+        .subscribe();
+      setConnected(true);
+      setSyncStatus("online");
+    })();
+
+    return () => {
+      active = false;
+      if (channelRef.current) sb.removeChannel(channelRef.current);
+      channelRef.current = null;
+    };
+  }, [loaded]);
+
+  // Background Wikipedia sync: on load and every few minutes, pull the season
+  // and fold it in. applyWikiSeason is a no-op (same object) when Wikipedia
+  // has nothing new, so idle polls cause no writes.
+  useEffect(() => {
+    if (!loaded) return;
+    let stop = false;
+    const run = async () => {
+      try {
+        const season = await fetchSeason(WIKI_SEASON);
+        if (stop) return;
+        if (season.cast.length > 0) {
+          setState((s) => applyWikiSeason(s, season));
+        }
+        setWikiError(null);
+        setWikiSyncedAt(Date.now());
+      } catch (e) {
+        if (!stop)
+          setWikiError(e instanceof Error ? e.message : "Sync failed.");
+      }
+    };
+    run();
+    const timer = setInterval(run, WIKI_SYNC_INTERVAL_MS);
+    return () => {
+      stop = true;
+      clearInterval(timer);
+    };
+  }, [loaded]);
+
+  // Look up cast photos on the fandom wiki for houseguests that don't have
+  // one yet. Only found URLs are recorded — a miss stays unset so someone
+  // whose fan-wiki page appears mid-season (common right after premiere)
+  // gets picked up on a later visit. One attempt per id+name per session.
   const photoAttempts = useRef(new Set<string>());
   const photoLoopRunning = useRef(false);
   useEffect(() => {
     if (!loaded) return;
     const pending = state.houseguests.filter(
-      (h) =>
-        h.photoUrl === undefined &&
-        !photoAttempts.current.has(`${h.id}|${h.name}`),
+      (h) => !h.photoUrl && !photoAttempts.current.has(`${h.id}|${h.name}`),
     );
     if (pending.length === 0) return;
     // Debounced so mid-rename keystrokes don't each fire a lookup. Applying
@@ -345,13 +381,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         for (const hg of pending) {
           photoAttempts.current.add(`${hg.id}|${hg.name}`);
           const url = await fetchHouseguestPhoto(hg.name);
-          if (url === undefined) continue; // transient failure — retry later
+          if (!url) continue; // no page (yet) or transient — try next visit
           setState((s) => ({
             ...s,
             houseguests: s.houseguests.map((h) =>
-              h.id === hg.id && h.photoUrl === undefined
-                ? { ...h, photoUrl: url }
-                : h,
+              h.id === hg.id && !h.photoUrl ? { ...h, photoUrl: url } : h,
             ),
           }));
         }
@@ -370,7 +404,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // ignore quota errors
     }
-    if (!supabase || !leagueId) return;
+    if (!supabase || !connected) return;
     const sb = supabase;
     const json = JSON.stringify(state);
     if (json === lastSyncedJson.current) return; // unchanged / inbound echo
@@ -382,10 +416,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const { error } = await sb
         .from(LEAGUES_TABLE)
         .update({ state, updated_at: new Date().toISOString() })
-        .eq("id", leagueId);
+        .eq("id", FAMILY_LEAGUE_ID);
       setSyncStatus(error ? "error" : "online");
     }, 600);
-  }, [state, loaded, leagueId]);
+  }, [state, loaded, connected]);
 
   const value = useMemo<StoreValue>(() => {
     const setSeasonName = (name: string) =>
@@ -522,197 +556,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         events: s.events.filter((e) => e.id !== id),
       }));
 
-    const importCastFromWiki = (names: string[]) =>
-      setState((s) => {
-        const existing = new Set(
-          s.houseguests.map((h) => h.name.toLowerCase().trim()),
-        );
-        const additions: Houseguest[] = names
-          .map((n) => n.trim())
-          .filter((n) => n && !existing.has(n.toLowerCase()))
-          .map((name) => ({
-            id: uid("hg"),
-            name,
-            status: "active" as HouseguestStatus,
-            exitWeek: null,
-          }));
-        return { ...s, houseguests: [...s.houseguests, ...additions] };
-      });
-
-    const applyWikiSync = (season: WikiSeason) =>
-      setState((s) => {
-        // Build a key → houseguest index for fuzzy first-name matching.
-        const index: Record<string, string> = {};
-        for (const hg of s.houseguests) {
-          for (const k of nameKeys(hg.name)) {
-            if (!(k in index)) index[k] = hg.id;
-          }
-        }
-        const matchId = (name: string): string | null => {
-          for (const k of nameKeys(name)) if (index[k]) return index[k];
-          return null;
-        };
-
-        // Apply statuses from the cast table.
-        const statusById: Record<
-          string,
-          { status: HouseguestStatus; exitWeek: number | null }
-        > = {};
-        for (const c of season.cast) {
-          const id = matchId(c.name);
-          if (!id) continue;
-          statusById[id] = {
-            status: c.status,
-            exitWeek: c.status === "active" ? null : weekFromDay(c.day),
-          };
-        }
-        const houseguests = s.houseguests.map((h) =>
-          statusById[h.id] ? { ...h, ...statusById[h.id] } : h,
-        );
-
-        // Rebuild wiki-sourced scoring events (idempotent re-sync).
-        const manual = s.events.filter((e) => e.source !== "wiki");
-        const wikiEvents: ScoreEvent[] = [];
-        const push = (name: string, concept: string, week: number) => {
-          const id = matchId(name);
-          if (!id) return;
-          const ruleId = resolveRuleId(s.rules, concept);
-          if (!ruleId) return;
-          wikiEvents.push({
-            id: uid("ev"),
-            houseguestId: id,
-            ruleId,
-            week: Math.max(1, week),
-            source: "wiki",
-          });
-        };
-        season.hohWins.forEach((n, i) => push(n, "hoh", i + 1));
-        season.vetoWins.forEach((n, i) => push(n, "veto", i + 1));
-        season.otherCompWins.forEach((n, i) => push(n, "comp", i + 1));
-        const finaleWeek = Math.max(1, season.hohWins.length);
-        if (season.winner) push(season.winner, "winner", finaleWeek);
-        if (season.runnerUp) push(season.runnerUp, "runnerup", finaleWeek);
-        if (season.americasFavorite)
-          push(season.americasFavorite, "afp", finaleWeek);
-
-        return {
-          ...s,
-          houseguests,
-          events: [...manual, ...wikiEvents],
-          currentWeek: Math.max(s.currentWeek, season.hohWins.length || 1),
-        };
-      });
-
-    const signUp = async (
-      email: string,
-      password: string,
-    ): Promise<string | null> => {
-      if (!supabase) return "Sign-in isn't configured.";
-      const { data, error } = await supabase.auth.signUp({ email, password });
-      if (error) return error.message;
-      if (!data.session)
-        return "Account created — check your email to confirm, then sign in.";
-      return null;
-    };
-
-    const signIn = async (
-      email: string,
-      password: string,
-    ): Promise<string | null> => {
-      if (!supabase) return "Sign-in isn't configured.";
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      return error ? error.message : null;
-    };
-
-    const signOut = async () => {
-      if (!supabase) return;
-      updateUrl(null);
-      await supabase.auth.signOut();
-      // the auth-change effect disconnects the league and returns to local mode
-    };
-
-    const createSharedLeague = async (): Promise<string | null> => {
-      if (!supabase || !user) return null;
-      setSyncStatus("connecting");
-      const { data, error } = await supabase
-        .from(LEAGUES_TABLE)
-        .insert({ name: state.seasonName, state, owner_id: user.id })
-        .select("id,owner_id")
-        .single();
-      if (error || !data) {
-        setSyncStatus("error");
-        return null;
-      }
-      lastSyncedJson.current = JSON.stringify(state);
-      setLeagueId(data.id);
-      setOwnerId((data.owner_id as string) ?? user.id);
-      try {
-        localStorage.setItem(LEAGUE_KEY, data.id);
-      } catch {
-        // ignore
-      }
-      updateUrl(data.id);
-      subscribeToLeague(data.id);
-      await loadMembers(data.id);
-      setSyncStatus("online");
-      return data.id;
-    };
-
-    const joinLeague = async (input: string): Promise<boolean> => {
-      const id = parseLeagueId(input);
-      if (!id || !supabase || !user) return false;
-      const ok = await loadLeague(id, true);
-      if (ok) updateUrl(id);
-      return ok;
-    };
-
-    const leaveSharedLeague = async () => {
-      const id = leagueId;
-      if (supabase && user && id) {
-        await supabase
-          .from(MEMBERS_TABLE)
-          .delete()
-          .eq("league_id", id)
-          .eq("user_id", user.id);
-      }
-      try {
-        localStorage.removeItem(LEAGUE_KEY);
-      } catch {
-        // ignore
-      }
-      updateUrl(null);
-      disconnectLeague();
-    };
-
-    const deleteLeague = async () => {
-      const id = leagueId;
-      if (supabase && user && id) {
-        await supabase.from(LEAGUES_TABLE).delete().eq("id", id);
-      }
-      try {
-        localStorage.removeItem(LEAGUE_KEY);
-      } catch {
-        // ignore
-      }
-      updateUrl(null);
-      disconnectLeague();
-    };
-
-    const removeMember = async (userId: string) => {
-      if (!supabase || !leagueId) return;
-      await supabase
-        .from(MEMBERS_TABLE)
-        .delete()
-        .eq("league_id", leagueId)
-        .eq("user_id", userId);
-      await loadMembers(leagueId);
-    };
-
-    const replaceState = (next: LeagueState) => setState(migrate(next));
-
     const resetAll = () => setState(defaultState());
 
     return {
@@ -734,42 +577,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       removeRule,
       addEvent,
       removeEvent,
-      importCastFromWiki,
-      applyWikiSync,
       supabaseEnabled: isSupabaseConfigured,
-      authReady,
-      user,
-      signUp,
-      signIn,
-      signOut,
-      leagueId,
-      ownerId,
-      isOwner: Boolean(ownerId && user && ownerId === user.id),
-      members,
       syncStatus,
-      createSharedLeague,
-      joinLeague,
-      leaveSharedLeague,
-      deleteLeague,
-      removeMember,
-      replaceState,
+      wikiSyncedAt,
+      wikiError,
       resetAll,
     };
-  }, [
-    state,
-    loaded,
-    leagueId,
-    ownerId,
-    members,
-    syncStatus,
-    user,
-    authReady,
-    loadLeague,
-    subscribeToLeague,
-    loadMembers,
-    disconnectLeague,
-    updateUrl,
-  ]);
+  }, [state, loaded, syncStatus, wikiSyncedAt, wikiError]);
 
   return (
     <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

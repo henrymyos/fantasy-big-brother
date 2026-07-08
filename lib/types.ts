@@ -14,8 +14,9 @@ export interface Houseguest {
   /** Week number the houseguest left the game (eviction / finale). */
   exitWeek?: number | null;
   /**
-   * Cast photo from the Big Brother fandom wiki. undefined = not looked up
-   * yet, null = looked up and none found (don't retry).
+   * Cast photo from the Big Brother fandom wiki. Unset until a lookup
+   * succeeds; misses are retried on a later visit (new houseguests get
+   * their fan-wiki page days into the season).
    */
   photoUrl?: string | null;
 }

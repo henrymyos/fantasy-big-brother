@@ -126,7 +126,7 @@ export function defaultTeams(count: number): Team[] {
 export function defaultState(): LeagueState {
   const teamCount = 4;
   return {
-    seasonName: "Big Brother Fantasy League",
+    seasonName: "Big Brother 28 Family League",
     currentWeek: 1,
     teamCount,
     picksPerTeam: 4,
@@ -137,23 +137,3 @@ export function defaultState(): LeagueState {
     events: [],
   };
 }
-
-/** A small sample roster to let people try the app instantly. */
-export const SAMPLE_NAMES = [
-  "Alex",
-  "Brianna",
-  "Carlos",
-  "Dana",
-  "Emurr",
-  "Felicia",
-  "Greg",
-  "Hana",
-  "Ivan",
-  "Jordan",
-  "Kayla",
-  "Liam",
-  "Maya",
-  "Noah",
-  "Olivia",
-  "Priya",
-];

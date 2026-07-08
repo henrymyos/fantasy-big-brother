@@ -101,7 +101,12 @@ async function fetchWikitext(title: string): Promise<string> {
 
 export async function fetchSeason(input: string): Promise<WikiSeason> {
   const title = resolveSeasonTitle(input);
-  const wikitext = await fetchWikitext(title);
+  // Strip HTML comments up front — editors park not-yet-official rows
+  // (e.g. rumored houseguests) inside <!-- --> and those must not import.
+  const wikitext = (await fetchWikitext(title)).replace(
+    /<!--[\s\S]*?-->/g,
+    "",
+  );
 
   const infobox = parseInfobox(wikitext);
   const cast = parseHouseguests(wikitext);
@@ -272,12 +277,13 @@ function parseHouseguests(wikitext: string): WikiCastMember[] {
     null;
 
   for (const row of rows) {
-    const headerLine = row.split("\n").find((l) => /scope="row"/.test(l));
-    if (!headerLine) continue;
+    // The name is the row's header cell ("! …"). Early in a season these are
+    // often bare (`! Ashley Trail`) with no scope attribute, so accept any
+    // header cell that isn't a column header.
+    const headerLine = row.split("\n").find((l) => /^\s*!/.test(l));
+    if (!headerLine || /scope="col"/i.test(headerLine)) continue;
 
-    // Name lives after the attribute pipe of the row-scope header cell.
-    const afterPipe = headerLine.replace(/^[^|]*\|/, "");
-    const name = clean(afterPipe).split("\n")[0].trim();
+    const name = cellContent(headerLine).split("\n")[0].trim();
     if (!name || /^name$/i.test(name)) continue;
 
     const own = resultFromRow(row);
