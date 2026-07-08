@@ -1,14 +1,17 @@
 import type { LeagueState, ScoringRule, Team } from "./types";
 
+// Also the standings-chart series palette: every hue passes the lightness,
+// chroma, colorblind-separation and contrast checks against the card surface
+// (#131a2e), including between neighbors in this order.
 export const TEAM_COLORS = [
   "#ef4444", // red
   "#3b82f6", // blue
-  "#22c55e", // green
-  "#eab308", // yellow
-  "#a855f7", // purple
-  "#f97316", // orange
+  "#d97706", // amber
+  "#16a34a", // green
   "#ec4899", // pink
-  "#14b8a6", // teal
+  "#a855f7", // purple
+  "#0d9488", // teal
+  "#ea580c", // orange
 ];
 
 export const CATEGORY_META: Record<

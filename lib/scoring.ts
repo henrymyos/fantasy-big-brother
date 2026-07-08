@@ -108,6 +108,91 @@ export function computeStandings(state: LeagueState): TeamStanding[] {
   return standings;
 }
 
+export interface WeeklySeries {
+  team: Team;
+  /** Cumulative points through each week; index i pairs with weeks[i]. */
+  totals: number[];
+}
+
+export interface WeeklyStandings {
+  /** Week axis, starting at 0 (pre-season, everyone at zero). */
+  weeks: number[];
+  series: WeeklySeries[];
+  maxTotal: number;
+}
+
+/** Cumulative team totals per week — the standings-over-time chart data. */
+export function standingsByWeek(state: LeagueState): WeeklyStandings {
+  const rules = ruleMap(state.rules);
+  const teamByHg: Record<string, string> = {};
+  for (const p of state.picks) teamByHg[p.houseguestId] = p.teamId;
+
+  const lastEventWeek = state.events.reduce((m, e) => Math.max(m, e.week), 0);
+  const maxWeek = Math.max(1, state.currentWeek, lastEventWeek);
+  const weeks = Array.from({ length: maxWeek + 1 }, (_, i) => i);
+
+  // Points earned by each team in each week, then accumulated.
+  const perWeek: Record<string, number[]> = {};
+  for (const t of state.teams) perWeek[t.id] = weeks.map(() => 0);
+  for (const e of state.events) {
+    const teamId = teamByHg[e.houseguestId];
+    const rule = rules[e.ruleId];
+    if (!teamId || !rule || !perWeek[teamId]) continue;
+    const w = Math.min(Math.max(1, e.week), maxWeek);
+    perWeek[teamId][w] += rule.points;
+  }
+
+  let maxTotal = 0;
+  const series: WeeklySeries[] = state.teams.map((team) => {
+    let sum = 0;
+    const totals = perWeek[team.id].map((pts) => {
+      sum += pts;
+      maxTotal = Math.max(maxTotal, sum);
+      return sum;
+    });
+    return { team, totals };
+  });
+  return { weeks, series, maxTotal };
+}
+
+export interface HouseguestStatLine {
+  points: number;
+  eventCount: number;
+  hohWins: number;
+  vetoWins: number;
+  otherCompWins: number;
+}
+
+/** Per-houseguest tally for the stat cards (comp wins split out by kind). */
+export function houseguestStatLine(
+  houseguestId: string,
+  state: LeagueState,
+): HouseguestStatLine {
+  const rules = ruleMap(state.rules);
+  const line: HouseguestStatLine = {
+    points: 0,
+    eventCount: 0,
+    hohWins: 0,
+    vetoWins: 0,
+    otherCompWins: 0,
+  };
+  for (const e of state.events) {
+    if (e.houseguestId !== houseguestId) continue;
+    const rule = rules[e.ruleId];
+    if (!rule) continue;
+    line.points += rule.points;
+    line.eventCount += 1;
+    if (rule.id === "r-hoh" || /head of household/i.test(rule.label)) {
+      line.hohWins += 1;
+    } else if (rule.id === "r-pov" || /win power of veto/i.test(rule.label)) {
+      line.vetoWins += 1;
+    } else if (rule.category === "comp") {
+      line.otherCompWins += 1;
+    }
+  }
+  return line;
+}
+
 /** Houseguests that have not yet been drafted. */
 export function undraftedHouseguests(state: LeagueState): Houseguest[] {
   const drafted = new Set(state.picks.map((p) => p.houseguestId));

@@ -22,9 +22,12 @@ The app has five tabs:
 
 0. **Auto-sync** — pull the cast and live results straight from the season's
    **Wikipedia page** instead of typing anything (see below).
-1. **Houseguests** — paste the cast (one name per line). As the season plays
-   out, set each person's status: _in the house → evicted / jury → runner-up /
-   winner_.
+1. **Houseguests** — paste the cast (one name per line). Each houseguest gets a
+   **stat card** with their photo (found automatically on the [Big Brother fan
+   wiki](https://bigbrother.fandom.com), full names required — evicted players
+   go grayscale), comp-win tallies (HOH / Veto / other), points, and the team
+   that drafted them. As the season plays out, set each person's status: _in
+   the house → evicted / jury → runner-up / winner_.
 2. **Draft** — set the number of teams and picks per team (defaults to 4×4),
    name each team and owner, then run a **snake draft** (pick order reverses
    each round). The app tracks who's on the clock; click a houseguest to draft
@@ -35,7 +38,9 @@ The app has five tabs:
 4. **Standings** — live leaderboard. Each team's total is the sum of all points
    their drafted houseguests have earned, with a per-team roster and progress
    bar. Crowns the league winner once a houseguest is marked the Big Brother
-   champion.
+   champion. **The race** chart plots every team's cumulative points week by
+   week — hover (or arrow-key) any week for a full readout, or expand the
+   table view for the raw numbers.
 
 ### Default scoring system
 

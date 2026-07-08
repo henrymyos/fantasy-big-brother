@@ -13,6 +13,11 @@ export interface Houseguest {
   status: HouseguestStatus;
   /** Week number the houseguest left the game (eviction / finale). */
   exitWeek?: number | null;
+  /**
+   * Cast photo from the Big Brother fandom wiki. undefined = not looked up
+   * yet, null = looked up and none found (don't retry).
+   */
+  photoUrl?: string | null;
 }
 
 export interface Team {

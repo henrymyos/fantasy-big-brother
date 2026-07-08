@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 import { defaultState, defaultTeams, TEAM_COLORS } from "./defaults";
+import { fetchHouseguestPhoto } from "./photos";
 import { snakeOrder, teamOnTheClock } from "./scoring";
 import { nameKeys, weekFromDay, type WikiSeason } from "./wiki";
 import {
@@ -319,6 +320,47 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       }
     })();
   }, [authReady, user, loadLeague, disconnectLeague]);
+
+  // Look up cast photos on the fandom wiki for houseguests that have never
+  // been checked (photoUrl undefined). One attempt per id+name per session;
+  // a recorded miss (null) is permanent so renames don't refetch forever.
+  const photoAttempts = useRef(new Set<string>());
+  const photoLoopRunning = useRef(false);
+  useEffect(() => {
+    if (!loaded) return;
+    const pending = state.houseguests.filter(
+      (h) =>
+        h.photoUrl === undefined &&
+        !photoAttempts.current.has(`${h.id}|${h.name}`),
+    );
+    if (pending.length === 0) return;
+    // Debounced so mid-rename keystrokes don't each fire a lookup. Applying
+    // a result re-runs this effect, so a single-flight guard keeps exactly
+    // one lookup loop alive; results are always applied (the updater is a
+    // no-op if the houseguest was removed or already resolved meanwhile).
+    const timer = setTimeout(async () => {
+      if (photoLoopRunning.current) return;
+      photoLoopRunning.current = true;
+      try {
+        for (const hg of pending) {
+          photoAttempts.current.add(`${hg.id}|${hg.name}`);
+          const url = await fetchHouseguestPhoto(hg.name);
+          if (url === undefined) continue; // transient failure — retry later
+          setState((s) => ({
+            ...s,
+            houseguests: s.houseguests.map((h) =>
+              h.id === hg.id && h.photoUrl === undefined
+                ? { ...h, photoUrl: url }
+                : h,
+            ),
+          }));
+        }
+      } finally {
+        photoLoopRunning.current = false;
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [loaded, state.houseguests]);
 
   // Persist: always cache locally; debounce-push to the server when online.
   useEffect(() => {

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { CATEGORY_META } from "@/lib/defaults";
 import type { HouseguestStatus } from "@/lib/types";
 
@@ -126,6 +127,53 @@ export function CategoryTag({ category }: { category: string }) {
     >
       {meta.label}
     </span>
+  );
+}
+
+/** Cast photo with an initial-letter fallback (also used while loading). */
+export function Avatar({
+  name,
+  src,
+  active = true,
+  size = 36,
+  className = "",
+}: {
+  name: string;
+  src?: string | null;
+  active?: boolean;
+  size?: number;
+  className?: string;
+}) {
+  const [failed, setFailed] = useState(false);
+  const style = { width: size, height: size };
+  if (src && !failed) {
+    return (
+      // Remote fandom thumbnails; the static export has no image optimizer.
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={src}
+        alt=""
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        onError={() => setFailed(true)}
+        className={`shrink-0 rounded-full object-cover object-top bg-[var(--surface-2)] ${
+          active ? "" : "grayscale opacity-70"
+        } ${className}`}
+        style={style}
+      />
+    );
+  }
+  return (
+    <div
+      className={`shrink-0 rounded-full grid place-items-center font-semibold ${
+        active
+          ? "bg-emerald-500/20 text-emerald-200"
+          : "bg-slate-600/30 text-slate-300"
+      } ${className}`}
+      style={{ ...style, fontSize: Math.max(11, size * 0.4) }}
+    >
+      {name.trim().slice(0, 1).toUpperCase() || "?"}
+    </div>
   );
 }
 

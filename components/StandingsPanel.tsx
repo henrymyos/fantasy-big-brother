@@ -1,8 +1,9 @@
 "use client";
 
 import { useStore } from "@/lib/store";
-import { computeStandings } from "@/lib/scoring";
-import { Card, EmptyState, Points, SectionTitle, StatusBadge } from "./ui";
+import { computeStandings, standingsByWeek } from "@/lib/scoring";
+import { StandingsChart } from "./StandingsChart";
+import { Avatar, Card, EmptyState, Points, SectionTitle, StatusBadge } from "./ui";
 
 const MEDALS = ["🥇", "🥈", "🥉"];
 
@@ -14,6 +15,8 @@ export function StandingsPanel() {
   const champ = state.houseguests.find((h) => h.status === "winner");
 
   const anyDrafted = state.picks.length > 0;
+  const anyScored = anyDrafted && state.events.length > 0;
+  const weekly = anyScored ? standingsByWeek(state) : null;
 
   return (
     <div className="space-y-5">
@@ -36,6 +39,16 @@ export function StandingsPanel() {
               </p>
             </div>
           </div>
+        </Card>
+      )}
+
+      {weekly && (
+        <Card>
+          <SectionTitle
+            title="The race"
+            subtitle="Cumulative team points, week by week."
+          />
+          <StandingsChart data={weekly} />
         </Card>
       )}
 
@@ -103,6 +116,12 @@ export function StandingsPanel() {
                       key={hs.houseguest.id}
                       className="flex items-center gap-2 text-sm"
                     >
+                      <Avatar
+                        name={hs.houseguest.name}
+                        src={hs.houseguest.photoUrl}
+                        active={hs.houseguest.status !== "evicted"}
+                        size={22}
+                      />
                       <span
                         className={`flex-1 min-w-0 truncate ${
                           hs.houseguest.status === "evicted"

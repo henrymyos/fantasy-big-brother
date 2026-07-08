@@ -3,9 +3,10 @@
 import { useState } from "react";
 import { useStore } from "@/lib/store";
 import { SAMPLE_NAMES } from "@/lib/defaults";
-import { computeHouseguestScores } from "@/lib/scoring";
+import { computeHouseguestScores, houseguestStatLine } from "@/lib/scoring";
 import type { HouseguestStatus } from "@/lib/types";
 import {
+  Avatar,
   Button,
   Card,
   EmptyState,
@@ -23,6 +24,14 @@ const STATUS_OPTIONS: { value: HouseguestStatus; label: string }[] = [
   { value: "winner", label: "Winner" },
 ];
 
+function StatChip({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-[var(--surface)] border border-[var(--border)] px-2 py-0.5 text-[11px] text-[var(--muted)]">
+      {children}
+    </span>
+  );
+}
+
 export function HouseguestsPanel() {
   const {
     state,
@@ -34,7 +43,12 @@ export function HouseguestsPanel() {
   const [bulk, setBulk] = useState("");
 
   const scores = computeHouseguestScores(state);
-  const draftedIds = new Set(state.picks.map((p) => p.houseguestId));
+  const teamByHg = new Map(
+    state.picks.map((p) => [
+      p.houseguestId,
+      state.teams.find((t) => t.id === p.teamId),
+    ]),
+  );
 
   const submit = () => {
     const names = bulk.split(/[\n,]/);
@@ -72,6 +86,10 @@ export function HouseguestsPanel() {
           {state.houseguests.filter((h) => h.status === "active").length} still
           in the house
         </p>
+        <p className="text-xs text-[var(--muted)] mt-2">
+          Photos are found automatically on the Big Brother fan wiki — use full
+          names (e.g. from Auto-sync) so the right person matches.
+        </p>
       </Card>
 
       <Card>
@@ -82,73 +100,106 @@ export function HouseguestsPanel() {
         {state.houseguests.length === 0 ? (
           <EmptyState>No houseguests yet. Add the cast to get started.</EmptyState>
         ) : (
-          <ul className="divide-y divide-[var(--border)]">
-            {scores.map(({ houseguest: hg, points }) => (
-              <li
-                key={hg.id}
-                className="flex items-center gap-3 py-2.5 flex-wrap"
-              >
-                <div
-                  className={`size-9 shrink-0 rounded-full grid place-items-center font-semibold text-sm ${
-                    hg.status === "active"
-                      ? "bg-emerald-500/20 text-emerald-200"
-                      : "bg-slate-600/30 text-slate-300"
-                  }`}
+          <ul className="grid sm:grid-cols-2 gap-3">
+            {scores.map(({ houseguest: hg, points }) => {
+              const stats = houseguestStatLine(hg.id, state);
+              const team = teamByHg.get(hg.id);
+              const out = hg.status === "evicted";
+              return (
+                <li
+                  key={hg.id}
+                  className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3 flex flex-col gap-2.5"
                 >
-                  {hg.name.slice(0, 1).toUpperCase()}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <input
-                    value={hg.name}
-                    onChange={(e) =>
-                      updateHouseguest(hg.id, { name: e.target.value })
-                    }
-                    className="bg-transparent font-medium outline-none focus:underline w-full"
-                  />
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <StatusBadge status={hg.status} />
-                    {hg.exitWeek ? (
-                      <span className="text-xs text-[var(--muted)]">
-                        Week {hg.exitWeek}
-                      </span>
-                    ) : null}
-                    {draftedIds.has(hg.id) && (
-                      <span className="text-xs text-[var(--muted)]">
-                        · drafted
+                  <div className="flex items-start gap-3">
+                    <Avatar
+                      name={hg.name}
+                      src={hg.photoUrl}
+                      active={!out}
+                      size={52}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <input
+                        value={hg.name}
+                        onChange={(e) =>
+                          updateHouseguest(hg.id, { name: e.target.value })
+                        }
+                        className={`bg-transparent font-medium outline-none focus:underline w-full ${
+                          out ? "text-[var(--muted)]" : ""
+                        }`}
+                      />
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        <StatusBadge status={hg.status} />
+                        {hg.exitWeek ? (
+                          <span className="text-xs text-[var(--muted)]">
+                            Week {hg.exitWeek}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <Points value={points} />
+                      <div className="text-[10px] text-[var(--muted)]">pts</div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {stats.hohWins > 0 && (
+                      <StatChip>👑 {stats.hohWins}× HOH</StatChip>
+                    )}
+                    {stats.vetoWins > 0 && (
+                      <StatChip>🛡️ {stats.vetoWins}× Veto</StatChip>
+                    )}
+                    {stats.otherCompWins > 0 && (
+                      <StatChip>
+                        🎯 {stats.otherCompWins}{" "}
+                        {stats.otherCompWins === 1 ? "comp" : "comps"}
+                      </StatChip>
+                    )}
+                    {stats.eventCount === 0 && (
+                      <span className="text-[11px] text-[var(--muted)]">
+                        No scoring events yet
                       </span>
                     )}
+                    {team && (
+                      <StatChip>
+                        <span
+                          className="size-2 rounded-full inline-block"
+                          style={{ background: team.color }}
+                        />
+                        {team.name}
+                      </StatChip>
+                    )}
                   </div>
-                </div>
-                <div className="text-right mr-1">
-                  <Points value={points} />
-                  <div className="text-[10px] text-[var(--muted)]">pts</div>
-                </div>
-                <Select
-                  value={hg.status}
-                  onChange={(e) =>
-                    setHouseguestStatus(
-                      hg.id,
-                      e.target.value as HouseguestStatus,
-                    )
-                  }
-                  className="w-auto"
-                >
-                  {STATUS_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </Select>
-                <Button
-                  variant="danger"
-                  size="sm"
-                  onClick={() => removeHouseguest(hg.id)}
-                  aria-label={`Remove ${hg.name}`}
-                >
-                  ✕
-                </Button>
-              </li>
-            ))}
+
+                  <div className="flex items-center gap-2 mt-auto">
+                    <Select
+                      value={hg.status}
+                      onChange={(e) =>
+                        setHouseguestStatus(
+                          hg.id,
+                          e.target.value as HouseguestStatus,
+                        )
+                      }
+                      className="flex-1"
+                    >
+                      {STATUS_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </Select>
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      onClick={() => removeHouseguest(hg.id)}
+                      aria-label={`Remove ${hg.name}`}
+                    >
+                      ✕
+                    </Button>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </Card>
