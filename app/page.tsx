@@ -6,6 +6,7 @@ import { teamOnTheClock } from "@/lib/scoring";
 import { Button } from "@/components/ui";
 import { StandingsPanel } from "@/components/StandingsPanel";
 import { DraftPanel } from "@/components/DraftPanel";
+import { ScoringSettings } from "@/components/ScoringSettings";
 
 type TabId = "standings" | "draft";
 
@@ -49,6 +50,7 @@ export default function Home() {
   // Land on the draft board while the draft is live, standings after.
   // null = no tab clicked yet, so derive the default from the league.
   const [tab, setTab] = useState<TabId | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const activeTab =
     tab ?? (teamOnTheClock(state).complete ? "standings" : "draft");
 
@@ -78,20 +80,31 @@ export default function Home() {
               {statusLine(supabaseEnabled, syncStatus, wikiSyncedAt, wikiError)}
             </p>
           </div>
-          <Button
-            variant="danger"
-            size="sm"
-            onClick={() => {
-              if (
-                confirm(
-                  "Reset the entire league — for everyone in the family? This clears teams, cast, draft and scores.",
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSettingsOpen(true)}
+              aria-label="Scoring settings"
+              title="Scoring settings"
+            >
+              ⚙️ Scoring
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={() => {
+                if (
+                  confirm(
+                    "Reset the entire league — for everyone in the family? This clears teams, cast, draft and scores.",
+                  )
                 )
-              )
-                resetAll();
-            }}
-          >
-            Reset
-          </Button>
+                  resetAll();
+              }}
+            >
+              Reset
+            </Button>
+          </div>
         </div>
 
         {/* Tabs */}
@@ -131,6 +144,8 @@ export default function Home() {
         Draft houseguests · results sync themselves · watch the standings shift
         all season.
       </footer>
+
+      {settingsOpen && <ScoringSettings onClose={() => setSettingsOpen(false)} />}
     </div>
   );
 }
