@@ -1,14 +1,19 @@
 "use client";
 
+import { useState } from "react";
 import { useStore } from "@/lib/store";
 import { computeStandings, standingsByWeek } from "@/lib/scoring";
+import { HouseguestCard } from "./HouseguestCard";
+import { LeagueChat } from "./LeagueChat";
 import { StandingsChart } from "./StandingsChart";
+import { WeeklyRecap } from "./WeeklyRecap";
 import { Avatar, Card, EmptyState, Points, SectionTitle, StatusBadge } from "./ui";
 
 const MEDALS = ["🥇", "🥈", "🥉"];
 
 export function StandingsPanel() {
   const { state } = useStore();
+  const [openHg, setOpenHg] = useState<string | null>(null);
   const standings = computeStandings(state);
   const leader = standings[0];
   const maxPoints = Math.max(1, ...standings.map((s) => s.points));
@@ -19,7 +24,8 @@ export function StandingsPanel() {
   const weekly = anyScored ? standingsByWeek(state) : null;
 
   return (
-    <div className="space-y-5">
+    <div className="grid lg:grid-cols-[1fr_330px] gap-5 items-start">
+      <div className="space-y-5 min-w-0">
       {champ && leader && (
         <Card className="border-yellow-400/40 bg-gradient-to-r from-yellow-400/10 to-transparent">
           <div className="flex items-center gap-4">
@@ -112,29 +118,32 @@ export function StandingsPanel() {
                 {/* roster */}
                 <ul className="px-4 py-2.5 grid sm:grid-cols-2 gap-x-4 gap-y-1.5">
                   {s.houseguests.map((hs) => (
-                    <li
-                      key={hs.houseguest.id}
-                      className="flex items-center gap-2 text-sm"
-                    >
-                      <Avatar
-                        name={hs.houseguest.name}
-                        src={hs.houseguest.photoUrl}
-                        active={hs.houseguest.status !== "evicted"}
-                        size={22}
-                      />
-                      <span
-                        className={`flex-1 min-w-0 truncate ${
-                          hs.houseguest.status === "evicted"
-                            ? "line-through text-[var(--muted)]"
-                            : ""
-                        }`}
+                    <li key={hs.houseguest.id}>
+                      <button
+                        onClick={() => setOpenHg(hs.houseguest.id)}
+                        className="w-full flex items-center gap-2 text-sm rounded-lg px-1 py-0.5 -mx-1 hover:bg-[var(--surface)] transition cursor-pointer text-left"
+                        title={`View ${hs.houseguest.name}'s season`}
                       >
-                        {hs.houseguest.name}
-                      </span>
-                      <StatusBadge status={hs.houseguest.status} />
-                      <span className="w-10 text-right">
-                        <Points value={hs.points} />
-                      </span>
+                        <Avatar
+                          name={hs.houseguest.name}
+                          src={hs.houseguest.photoUrl}
+                          active={hs.houseguest.status !== "evicted"}
+                          size={22}
+                        />
+                        <span
+                          className={`flex-1 min-w-0 truncate ${
+                            hs.houseguest.status === "evicted"
+                              ? "line-through text-[var(--muted)]"
+                              : ""
+                          }`}
+                        >
+                          {hs.houseguest.name}
+                        </span>
+                        <StatusBadge status={hs.houseguest.status} />
+                        <span className="w-10 text-right">
+                          <Points value={hs.points} />
+                        </span>
+                      </button>
                     </li>
                   ))}
                   {s.houseguests.length === 0 && (
@@ -148,6 +157,15 @@ export function StandingsPanel() {
           </div>
         )}
       </Card>
+
+      <WeeklyRecap />
+      </div>
+
+      <LeagueChat />
+
+      {openHg && (
+        <HouseguestCard houseguestId={openHg} onClose={() => setOpenHg(null)} />
+      )}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { StoreProvider } from "@/lib/store";
@@ -17,6 +17,15 @@ export const metadata: Metadata = {
   title: "Fantasy Big Brother",
   description:
     "Draft houseguests, track a custom scoring system, and follow eliminations all season long.",
+  appleWebApp: {
+    capable: true,
+    title: "Fantasy BB",
+    statusBarStyle: "black-translucent",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0b1020",
 };
 
 export default function RootLayout({
