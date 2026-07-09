@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useStore } from "@/lib/store";
+import { teamOnTheClock } from "@/lib/scoring";
 import { Button } from "@/components/ui";
 import { StandingsPanel } from "@/components/StandingsPanel";
 import { DraftPanel } from "@/components/DraftPanel";
@@ -45,7 +46,14 @@ export default function Home() {
     wikiSyncedAt,
     wikiError,
   } = useStore();
-  const [tab, setTab] = useState<TabId>("standings");
+  // Land on the draft board while the draft is live, standings after.
+  // Resolved once the cached league has loaded; null = still deciding.
+  const [tab, setTab] = useState<TabId | null>(null);
+  useEffect(() => {
+    if (!loaded) return;
+    setTab((cur) => cur ?? (teamOnTheClock(state).complete ? "standings" : "draft"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- initial tab only
+  }, [loaded]);
 
   return (
     <div className="flex flex-col min-h-dvh">
