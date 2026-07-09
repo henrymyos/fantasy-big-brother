@@ -35,19 +35,25 @@ watch the standings shift all season.
 
 ### Scoring (all automatic)
 
-Every scored event comes from the Wikipedia sync:
+Every scored event comes from the Wikipedia sync — comp wins are read
+directly, and the milestones are derived from the eviction order:
 
-| Event | Points |
-|---|---|
-| Win Head of Household | +10 |
-| Win Power of Veto | +8 |
-| Win other competition | +4 |
-| Runner-up (Final 2) | +20 |
-| Win Big Brother | +40 |
-| America's Favorite Player | +10 |
+| Event | Points | How it's detected |
+|---|---|---|
+| Win Head of Household | +10 | voting-history table |
+| Win Power of Veto | +8 | voting-history table |
+| Win other competition | +4 | voting-history table |
+| Survive the week | +2 | still in the house at the end of a completed week |
+| Make it to Jury | +5 | among the final 11 (9 jurors + 2 finalists) |
+| Reach Final 3 | +10 | among the final 3 |
+| Runner-up (Final 2) | +20 | cast table |
+| Win Big Brother | +40 | cast table |
+| America's Favorite Player | +10 | infobox |
 
-There's no manual scorekeeping — no houseguest management either; evictions,
-statuses, photos and comp wins all flow in on their own.
+(The derivation was verified against the finished Big Brother 26 season —
+it reproduces the real jury of nine, first juror included.) There's no
+manual scorekeeping — no houseguest management either; evictions, statuses,
+photos and comp wins all flow in on their own.
 
 ## Run it
 
