@@ -56,6 +56,48 @@ export function nameKeys(name: string): string[] {
   return [...keys];
 }
 
+/** Parse a display name into comparable parts. */
+function nameParts(name: string): {
+  nick: string | null;
+  first: string;
+  last: string;
+  squashed: string;
+} {
+  const nick =
+    name.match(/["'“”]([^"'“”]+)["'“”]/)?.[1]?.trim().toLowerCase() ?? null;
+  const tokens = name
+    .replace(/["'“”][^"'“”]*["'“”]/g, " ")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+  return {
+    nick,
+    first: tokens[0] ?? "",
+    last: tokens[tokens.length - 1] ?? "",
+    squashed: name.toLowerCase().replace(/[^a-z0-9]/g, ""),
+  };
+}
+
+/**
+ * Whether two display names plausibly refer to the same houseguest.
+ * Wikipedia editors rename cast members mid-season ("Rick Devens" →
+ * 'Patrick "Rick" Devens', "LaTrice" ↔ "La Trice"), so the sync must
+ * recognize a renamed person instead of importing them twice.
+ */
+export function samePerson(a: string, b: string): boolean {
+  const A = nameParts(a);
+  const B = nameParts(b);
+  if (A.squashed && A.squashed === B.squashed) return true; // spacing/punct
+  if (!A.last || A.last !== B.last) return false;
+  return (
+    A.first === B.first ||
+    A.nick === B.first ||
+    B.nick === A.first ||
+    (!!A.nick && A.nick === B.nick)
+  );
+}
+
 /** Derive an approximate week number from the day a houseguest left. */
 export function weekFromDay(day: number | null): number | null {
   if (!day) return null;

@@ -14,6 +14,7 @@ import { snakeOrder, teamOnTheClock } from "./scoring";
 import {
   fetchSeason,
   nameKeys,
+  samePerson,
   weekFromDay,
   type WikiSeason,
 } from "./wiki";
@@ -87,23 +88,32 @@ function hgIdForName(name: string): string {
  * re-render and no server write.
  */
 function applyWikiSeason(s: LeagueState, season: WikiSeason): LeagueState {
-  const existingNames = new Set(
-    s.houseguests.map((h) => h.name.toLowerCase().trim()),
-  );
   const usedIds = new Set(s.houseguests.map((h) => h.id));
+  const known = s.houseguests.map((h) => ({ id: h.id, name: h.name }));
+  const renames: Record<string, string> = {};
   const additions: Houseguest[] = [];
   for (const c of season.cast) {
     const name = c.name.trim();
-    if (!name || existingNames.has(name.toLowerCase())) continue;
+    if (!name) continue;
+    const match = known.find((k) => samePerson(k.name, name));
+    if (match) {
+      // Wikipedia renamed them ("Rick Devens" → 'Patrick "Rick" Devens'):
+      // follow the wiki's current spelling instead of duplicating the person.
+      if (match.name !== name) renames[match.id] = name;
+      continue;
+    }
     const id = hgIdForName(name);
     if (usedIds.has(id)) continue; // slug collision — leave for manual entry
     usedIds.add(id);
-    existingNames.add(name.toLowerCase());
+    known.push({ id, name });
     additions.push({ id, name, status: "active", exitWeek: null });
   }
-  const houseguests = additions.length
-    ? [...s.houseguests, ...additions]
-    : s.houseguests;
+  const houseguests = [
+    ...s.houseguests.map((h) =>
+      renames[h.id] ? { ...h, name: renames[h.id] } : h,
+    ),
+    ...additions,
+  ];
 
   // Key → houseguest index for fuzzy first-name matching (the voting grid
   // uses first names / nicknames only).
