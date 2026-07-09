@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { CATEGORY_META } from "@/lib/defaults";
 import type { HouseguestStatus } from "@/lib/types";
 
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -46,21 +45,6 @@ export function Input({
       className={`w-full rounded-lg bg-[var(--surface-2)] border border-[var(--border)] px-3 py-2 text-sm outline-none focus:border-accent placeholder:text-[var(--muted)] ${className}`}
       {...props}
     />
-  );
-}
-
-export function Select({
-  className = "",
-  children,
-  ...props
-}: React.SelectHTMLAttributes<HTMLSelectElement>) {
-  return (
-    <select
-      className={`w-full rounded-lg bg-[var(--surface-2)] border border-[var(--border)] px-3 py-2 text-sm outline-none focus:border-accent ${className}`}
-      {...props}
-    >
-      {children}
-    </select>
   );
 }
 
@@ -112,18 +96,6 @@ export function StatusBadge({ status }: { status: HouseguestStatus }) {
   return (
     <span
       className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${meta.cls}`}
-    >
-      {meta.label}
-    </span>
-  );
-}
-
-export function CategoryTag({ category }: { category: string }) {
-  const meta = CATEGORY_META[category] ?? { label: category, color: "#888" };
-  return (
-    <span
-      className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium"
-      style={{ background: `${meta.color}22`, color: meta.color }}
     >
       {meta.label}
     </span>

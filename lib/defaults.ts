@@ -14,17 +14,6 @@ export const TEAM_COLORS = [
   "#ea580c", // orange
 ];
 
-export const CATEGORY_META: Record<
-  string,
-  { label: string; color: string }
-> = {
-  comp: { label: "Competition", color: "#3b82f6" },
-  social: { label: "Social", color: "#a855f7" },
-  survival: { label: "Survival", color: "#22c55e" },
-  milestone: { label: "Milestone", color: "#eab308" },
-  penalty: { label: "Penalty", color: "#ef4444" },
-};
-
 export function defaultRules(): ScoringRule[] {
   return [
     {

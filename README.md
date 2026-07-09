@@ -24,40 +24,30 @@ watch the standings shift all season.
   [Big Brother fan wiki](https://bigbrother.fandom.com); evicted houseguests go
   grayscale.
 
-## The four tabs
+## The two tabs
 
-1. **Standings** — live leaderboard plus **The race**, a week-by-week chart of
-   each team's cumulative points (hover any week for a full readout, or expand
-   the table view).
-2. **Houseguests** — photo stat cards for the cast: status, exit week, points,
-   HOH / Veto / comp tallies, and who drafted them. Statuses sync themselves;
-   you can still override anything by hand.
-3. **Draft** — name the teams and owners, then run a **snake draft** (defaults
-   to 4 teams × 4 picks). The app tracks who's on the clock.
-4. **Scoring** — log the events Wikipedia can't know (survive the week, make
-   jury, special powers…). Rules and point values are fully editable; totals
-   recalculate instantly.
+1. **Standings** — live leaderboard with photo rosters, plus **The race**, a
+   week-by-week chart of each team's cumulative points (hover any week for a
+   full readout, or expand the table view).
+2. **Draft** — name the teams and owners, then run a **snake draft** (defaults
+   to 4 teams × 4 picks) on a disc-golf-style board: team columns, colored
+   pick cards, and a pulsing on-the-clock slot.
 
-### Default scoring system
+### Scoring (all automatic)
+
+Every scored event comes from the Wikipedia sync:
 
 | Event | Points |
 |---|---|
 | Win Head of Household | +10 |
 | Win Power of Veto | +8 |
 | Win other competition | +4 |
-| Win a special power / America's vote | +6 |
-| Saved off the block by veto | +4 |
-| Survive eviction while nominated | +5 |
-| Survive the week | +2 |
-| Make it to Jury | +5 |
-| Reach Final 3 | +10 |
 | Runner-up (Final 2) | +20 |
 | Win Big Brother | +40 |
 | America's Favorite Player | +10 |
-| Self-evict / expelled | −10 |
 
-HOH, Veto, other comps, winner, runner-up and AFP are logged automatically by
-the Wikipedia sync; the rest are for the family scorekeeper.
+There's no manual scorekeeping — no houseguest management either; evictions,
+statuses, photos and comp wins all flow in on their own.
 
 ## Run it
 

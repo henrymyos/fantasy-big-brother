@@ -4,17 +4,13 @@ import { useState } from "react";
 import { useStore } from "@/lib/store";
 import { Button } from "@/components/ui";
 import { StandingsPanel } from "@/components/StandingsPanel";
-import { HouseguestsPanel } from "@/components/HouseguestsPanel";
 import { DraftPanel } from "@/components/DraftPanel";
-import { ScoringPanel } from "@/components/ScoringPanel";
 
-type TabId = "standings" | "houseguests" | "draft" | "scoring";
+type TabId = "standings" | "draft";
 
 const TABS: { id: TabId; label: string; icon: string }[] = [
   { id: "standings", label: "Standings", icon: "🏆" },
-  { id: "houseguests", label: "Houseguests", icon: "🏠" },
   { id: "draft", label: "Draft", icon: "📋" },
-  { id: "scoring", label: "Scoring", icon: "⭐" },
 ];
 
 function statusLine(
@@ -121,9 +117,7 @@ export default function Home() {
         ) : (
           <>
             {tab === "standings" && <StandingsPanel />}
-            {tab === "houseguests" && <HouseguestsPanel />}
             {tab === "draft" && <DraftPanel />}
-            {tab === "scoring" && <ScoringPanel />}
           </>
         )}
       </main>
