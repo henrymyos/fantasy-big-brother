@@ -9,8 +9,8 @@ import { DraftPanel } from "@/components/DraftPanel";
 type TabId = "standings" | "draft";
 
 const TABS: { id: TabId; label: string; icon: string }[] = [
-  { id: "standings", label: "Standings", icon: "🏆" },
   { id: "draft", label: "Draft", icon: "📋" },
+  { id: "standings", label: "Standings", icon: "🏆" },
 ];
 
 function statusLine(
