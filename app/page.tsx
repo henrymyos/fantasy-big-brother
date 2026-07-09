@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useStore } from "@/lib/store";
 import { teamOnTheClock } from "@/lib/scoring";
 import { Button } from "@/components/ui";
@@ -47,13 +47,10 @@ export default function Home() {
     wikiError,
   } = useStore();
   // Land on the draft board while the draft is live, standings after.
-  // Resolved once the cached league has loaded; null = still deciding.
+  // null = no tab clicked yet, so derive the default from the league.
   const [tab, setTab] = useState<TabId | null>(null);
-  useEffect(() => {
-    if (!loaded) return;
-    setTab((cur) => cur ?? (teamOnTheClock(state).complete ? "standings" : "draft"));
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- initial tab only
-  }, [loaded]);
+  const activeTab =
+    tab ?? (teamOnTheClock(state).complete ? "standings" : "draft");
 
   return (
     <div className="flex flex-col min-h-dvh">
@@ -105,7 +102,7 @@ export default function Home() {
                 key={t.id}
                 onClick={() => setTab(t.id)}
                 className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors cursor-pointer ${
-                  tab === t.id
+                  activeTab === t.id
                     ? "border-accent text-foreground"
                     : "border-transparent text-[var(--muted)] hover:text-foreground"
                 }`}
@@ -124,8 +121,8 @@ export default function Home() {
           <div className="text-center text-[var(--muted)] py-20">Loading…</div>
         ) : (
           <>
-            {tab === "standings" && <StandingsPanel />}
-            {tab === "draft" && <DraftPanel />}
+            {activeTab === "standings" && <StandingsPanel />}
+            {activeTab === "draft" && <DraftPanel />}
           </>
         )}
       </main>
