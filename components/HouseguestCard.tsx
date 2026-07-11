@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useStore } from "@/lib/store";
+import { scoutFor, SCOUTING_TOTAL } from "@/lib/scouting";
 import { Avatar, Points, StatusBadge } from "./ui";
 
 /** Tap-a-houseguest popup: photo, status, and their scoring history. */
@@ -31,6 +32,7 @@ export function HouseguestCard({
     ? state.teams.find((t) => t.id === pick.teamId)
     : undefined;
 
+  const scout = scoutFor(hg.name);
   const history = state.events
     .filter((e) => e.houseguestId === hg.id)
     .map((e) => ({ event: e, rule: rules.get(e.ruleId) }))
@@ -98,6 +100,45 @@ export function HouseguestCard({
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 pb-5">
+          {scout && (
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/60 p-3.5 mb-3">
+              <p className="text-[11px] font-semibold text-[var(--muted)] uppercase tracking-wide">
+                Scouting report ·{" "}
+                <span className="text-accent">
+                  projected #{scout.rank} of {SCOUTING_TOTAL}
+                </span>
+              </p>
+              <p className="text-sm mt-1.5 leading-snug">{scout.blurb}</p>
+              <div className="grid grid-cols-2 gap-3 mt-3">
+                <div>
+                  <p className="text-[11px] font-semibold text-emerald-300 uppercase tracking-wide mb-1">
+                    Strengths
+                  </p>
+                  <ul className="space-y-0.5">
+                    {scout.strengths.map((s) => (
+                      <li key={s} className="text-xs leading-snug flex gap-1.5">
+                        <span className="text-emerald-300 shrink-0">+</span>
+                        <span>{s}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold text-red-300 uppercase tracking-wide mb-1">
+                    Weaknesses
+                  </p>
+                  <ul className="space-y-0.5">
+                    {scout.weaknesses.map((w) => (
+                      <li key={w} className="text-xs leading-snug flex gap-1.5">
+                        <span className="text-red-300 shrink-0">−</span>
+                        <span>{w}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
           {history.length === 0 ? (
             <p className="text-sm text-[var(--muted)] py-3">
               No scoring events yet.

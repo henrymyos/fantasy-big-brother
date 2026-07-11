@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { useStore } from "@/lib/store";
 import { teamOnTheClock, undraftedHouseguests } from "@/lib/scoring";
+import { scoutFor } from "@/lib/scouting";
 import type { Houseguest, Team } from "@/lib/types";
+import { HouseguestCard } from "./HouseguestCard";
 import { Avatar, Button, Card, EmptyState, Input, SectionTitle } from "./ui";
 
 /** Dark ink used on top of solid team-color pick cards. */
@@ -21,11 +23,13 @@ function DraftGrid({
   rounds,
   focusedTeamId,
   onFocusTeam,
+  onOpenHouseguest,
 }: {
   teams: Team[];
   rounds: number;
   focusedTeamId: string | null;
   onFocusTeam: (id: string | null) => void;
+  onOpenHouseguest: (id: string) => void;
 }) {
   const { state } = useStore();
   const clock = teamOnTheClock(state);
@@ -90,9 +94,12 @@ function DraftGrid({
         const { first, last } = splitName(hg.name);
         const out = hg.status === "evicted";
         cells.push(
-          <div
+          <button
             key={`${round}-${team.id}`}
-            className={`flex flex-col p-1.5 min-h-[64px] rounded-lg transition${dim}`}
+            type="button"
+            onClick={() => onOpenHouseguest(hg.id)}
+            title={`About ${hg.name}`}
+            className={`flex flex-col p-1.5 min-h-[64px] rounded-lg transition text-left cursor-pointer hover:ring-2 hover:ring-white/30 hover:brightness-110${dim}`}
             style={{ background: team.color, color: CARD_INK }}
           >
             <div className="flex justify-between items-start">
@@ -127,7 +134,7 @@ function DraftGrid({
                 {last}
               </p>
             </div>
-          </div>,
+          </button>,
         );
       } else if (isCurrent) {
         cells.push(
@@ -185,14 +192,20 @@ export function DraftPanel() {
   } = useStore();
   const [focusedTeamId, setFocusedTeamId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [openHg, setOpenHg] = useState<string | null>(null);
 
   const clock = teamOnTheClock(state);
   const totalPicks = state.teams.length * state.picksPerTeam;
   const onClockTeam = state.teams.find((t) => t.id === clock.teamId);
+  // Available pool, best projected fantasy value first (our scouting board).
   const available = undraftedHouseguests(state)
     .filter((h) => h.status !== "evicted")
     .filter(
       (h) => !search || h.name.toLowerCase().includes(search.toLowerCase()),
+    )
+    .sort(
+      (a, b) =>
+        (scoutFor(a.name)?.rank ?? 99) - (scoutFor(b.name)?.rank ?? 99),
     );
 
   const draftedCount = (teamId: string) =>
@@ -325,6 +338,7 @@ export function DraftPanel() {
             rounds={state.picksPerTeam}
             focusedTeamId={focusedTeamId}
             onFocusTeam={setFocusedTeamId}
+            onOpenHouseguest={setOpenHg}
           />
           <p className="text-[11px] text-[var(--muted)] mt-2 px-1">
             Snake order — pick order reverses each round. Tap a team header to
@@ -338,7 +352,7 @@ export function DraftPanel() {
             <p className="text-sm font-semibold">
               Available{" "}
               <span className="text-[var(--muted)] font-normal">
-                · {available.length} undrafted
+                · {available.length} undrafted · ranked by projected points
               </span>
             </p>
             <Input
@@ -362,36 +376,56 @@ export function DraftPanel() {
             </p>
           ) : (
             <ul className="max-h-[320px] overflow-y-auto divide-y divide-[var(--border)]">
-              {available.map((hg: Houseguest, idx: number) => (
-                <li
-                  key={hg.id}
-                  className="flex items-center gap-3 px-4 py-2 hover:bg-[var(--surface-2)] transition"
-                >
-                  <button
-                    onClick={() => draftHouseguest(hg.id)}
-                    disabled={clock.complete}
-                    className="shrink-0 text-xs font-bold uppercase tracking-wide px-3 py-1.5 rounded-full bg-accent text-[#04263a] hover:brightness-110 transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                    title={
-                      clock.complete
-                        ? "Draft is complete"
-                        : `Draft ${hg.name} to ${onClockTeam?.name}`
-                    }
+              {available.map((hg: Houseguest) => {
+                const scout = scoutFor(hg.name);
+                return (
+                  <li
+                    key={hg.id}
+                    className="flex items-center gap-3 px-4 py-2 hover:bg-[var(--surface-2)] transition"
                   >
-                    Draft
-                  </button>
-                  <span className="text-[var(--muted)] text-xs font-mono w-5 text-right shrink-0 tabular-nums">
-                    {idx + 1}
-                  </span>
-                  <Avatar name={hg.name} src={hg.photoUrl} size={28} />
-                  <span className="flex-1 min-w-0 truncate text-sm font-medium">
-                    {hg.name}
-                  </span>
-                </li>
-              ))}
+                    <button
+                      onClick={() => draftHouseguest(hg.id)}
+                      disabled={clock.complete}
+                      className="shrink-0 text-xs font-bold uppercase tracking-wide px-3 py-1.5 rounded-full bg-accent text-[#04263a] hover:brightness-110 transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                      title={
+                        clock.complete
+                          ? "Draft is complete"
+                          : `Draft ${hg.name} to ${onClockTeam?.name}`
+                      }
+                    >
+                      Draft
+                    </button>
+                    <button
+                      onClick={() => setOpenHg(hg.id)}
+                      className="flex-1 min-w-0 flex items-center gap-3 text-left cursor-pointer"
+                      title={`About ${hg.name}`}
+                    >
+                      <span className="text-[var(--muted)] text-xs font-mono w-7 text-right shrink-0 tabular-nums">
+                        {scout ? `#${scout.rank}` : "—"}
+                      </span>
+                      <Avatar name={hg.name} src={hg.photoUrl} size={28} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">
+                          {hg.name}
+                        </span>
+                        {scout && (
+                          <span className="block truncate text-[11px] text-[var(--muted)]">
+                            {scout.strengths[0]}
+                          </span>
+                        )}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
       </Card>
+
+      {openHg && (
+        <HouseguestCard houseguestId={openHg} onClose={() => setOpenHg(null)} />
+      )}
     </div>
   );
 }
