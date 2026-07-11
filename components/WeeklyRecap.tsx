@@ -84,9 +84,7 @@ export function WeeklyRecap() {
     lines.push(
       tied.length > 1
         ? `🏆 ${tied.map((r) => r.team.name).join(" and ")} are tied for the lead.`
-        : `🏆 ${leader.team.name}${
-            leader.team.owner ? ` (${leader.team.owner})` : ""
-          } leads the league.`,
+        : `🏆 ${leader.team.name} leads the league.`,
     );
   }
 

@@ -23,8 +23,8 @@ export interface Houseguest {
 
 export interface Team {
   id: string;
+  /** The family member's name — teams are people, no separate team name. */
   name: string;
-  owner: string;
   /** Tailwind-friendly hex accent color. */
   color: string;
 }

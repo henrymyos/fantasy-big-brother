@@ -83,15 +83,7 @@ export function StandingsPanel() {
                     style={{ background: s.team.color }}
                   />
                   <div className="flex-1 min-w-0">
-                    <div className="font-semibold truncate">
-                      {s.team.name}
-                      {s.team.owner ? (
-                        <span className="text-[var(--muted)] font-normal">
-                          {" "}
-                          · {s.team.owner}
-                        </span>
-                      ) : null}
-                    </div>
+                    <div className="font-semibold truncate">{s.team.name}</div>
                     <div className="text-xs text-[var(--muted)]">
                       {s.activeCount} still in the house
                     </div>

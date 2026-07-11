@@ -60,18 +60,11 @@ function DraftGrid({
             className="size-6 rounded-full shrink-0 grid place-items-center text-[10px] font-bold"
             style={{ backgroundColor: team.color, color: CARD_INK }}
           >
-            {(team.owner || team.name).slice(0, 1).toUpperCase()}
+            {team.name.slice(0, 1).toUpperCase()}
           </div>
-          <div className="min-w-0 text-left">
-            <p className="text-xs font-bold truncate leading-tight">
-              {team.name}
-            </p>
-            {team.owner && (
-              <p className="text-[10px] text-[var(--muted)] truncate leading-tight">
-                {team.owner}
-              </p>
-            )}
-          </div>
+          <p className="min-w-0 text-left text-xs font-bold truncate leading-tight">
+            {team.name}
+          </p>
         </div>
       </button>,
     );
@@ -210,8 +203,8 @@ export function DraftPanel() {
       {/* League shape + teams */}
       <Card>
         <SectionTitle
-          title="Teams & league setup"
-          subtitle="Name each team's owner and set how big the draft is."
+          title="The players"
+          subtitle="One team per family member — tweak a name or color anytime."
           right={
             <div className="flex items-end gap-3">
               <label className="text-xs text-[var(--muted)]">
@@ -250,28 +243,23 @@ export function DraftPanel() {
               className="rounded-xl border border-[var(--border)] p-3 bg-[var(--surface-2)]"
               style={{ borderTopColor: team.color, borderTopWidth: 3 }}
             >
-              <input
-                value={team.name}
-                onChange={(e) => updateTeam(team.id, { name: e.target.value })}
-                className="bg-transparent font-semibold outline-none focus:underline w-full"
-              />
-              <div className="flex items-center gap-2 mt-2">
+              <div className="flex items-center gap-2">
                 <input
                   type="color"
                   value={team.color}
                   onChange={(e) =>
                     updateTeam(team.id, { color: e.target.value })
                   }
-                  className="size-7 rounded cursor-pointer bg-transparent border-0"
+                  className="size-7 rounded cursor-pointer bg-transparent border-0 shrink-0"
                   aria-label={`${team.name} color`}
                 />
                 <input
-                  value={team.owner}
+                  value={team.name}
                   onChange={(e) =>
-                    updateTeam(team.id, { owner: e.target.value })
+                    updateTeam(team.id, { name: e.target.value })
                   }
-                  placeholder="Owner name"
-                  className="flex-1 bg-transparent text-sm outline-none placeholder:text-[var(--muted)] focus:underline"
+                  className="flex-1 min-w-0 bg-transparent font-semibold outline-none focus:underline"
+                  aria-label="Player name"
                 />
               </div>
               <p className="text-xs text-[var(--muted)] mt-2">
@@ -303,9 +291,7 @@ export function DraftPanel() {
                     color: onClockTeam?.color,
                   }}
                 >
-                  {onClockTeam?.owner
-                    ? `${onClockTeam.owner.toUpperCase()} IS ON THE CLOCK`
-                    : `${onClockTeam?.name ?? ""} on the clock`}
+                  {`${(onClockTeam?.name ?? "").toUpperCase()} IS ON THE CLOCK`}
                 </span>
               </>
             )}

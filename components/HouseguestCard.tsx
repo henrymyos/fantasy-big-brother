@@ -77,8 +77,7 @@ export function HouseguestCard({
                   className="size-2 rounded-full inline-block"
                   style={{ background: team.color }}
                 />
-                Drafted by {team.name}
-                {team.owner ? ` (${team.owner})` : ""} · pick {pick!.overall}
+                Drafted by {team.name} · pick {pick!.overall}
               </p>
             )}
           </div>

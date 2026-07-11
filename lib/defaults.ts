@@ -110,7 +110,6 @@ export function defaultTeams(count: number): Team[] {
   return Array.from({ length: count }, (_, i) => ({
     id: `team-${i + 1}`,
     name: FAMILY[i] ?? `Team ${i + 1}`,
-    owner: "",
     color: TEAM_COLORS[i % TEAM_COLORS.length],
   }));
 }
