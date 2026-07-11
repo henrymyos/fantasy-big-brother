@@ -119,6 +119,7 @@ export function defaultState(): LeagueState {
   return {
     seasonName: "Big Brother 28 Family League",
     currentWeek: 1,
+    hidden: [],
     teamCount,
     picksPerTeam: 4,
     houseguests: [],

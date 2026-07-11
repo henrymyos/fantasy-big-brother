@@ -59,6 +59,9 @@ interface StoreValue {
     exitWeek?: number | null,
   ) => void;
   removeHouseguest: (id: string) => void;
+  /** Spoiler shield: raw entries hidden from view until they air on TV. */
+  hiddenHouseguests: Houseguest[];
+  setHouseguestHidden: (id: string, hidden: boolean) => void;
   // teams
   updateTeam: (id: string, patch: Partial<Team>) => void;
   // draft
@@ -93,6 +96,7 @@ function migrate(parsed: Partial<LeagueState>): LeagueState {
     houseguests: parsed.houseguests ?? [],
     picks: parsed.picks ?? [],
     events: parsed.events ?? [],
+    hidden: parsed.hidden ?? [],
   };
 }
 
@@ -289,6 +293,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }, 600);
   }, [state, loaded, connected]);
 
+  // Spoiler shield: what consumers see. Hidden houseguests (not yet revealed
+  // on TV) and their events are filtered out; the raw state keeps everything
+  // so sync, persistence, and the eventual reveal lose nothing.
+  const view = useMemo<LeagueState>(() => {
+    if (state.hidden.length === 0) return state;
+    const hid = new Set(state.hidden);
+    return {
+      ...state,
+      houseguests: state.houseguests.filter((h) => !hid.has(h.id)),
+      events: state.events.filter((e) => !hid.has(e.houseguestId)),
+    };
+  }, [state]);
+
   const value = useMemo<StoreValue>(() => {
     const setSeasonName = (name: string) =>
       setState((s) => ({ ...s, seasonName: name }));
@@ -355,6 +372,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             : h,
         ),
       }));
+
+    const setHouseguestHidden = (id: string, hidden: boolean) =>
+      setState((s) => {
+        // Never hide someone a team has drafted — the board math needs them.
+        if (hidden && s.picks.some((p) => p.houseguestId === id)) return s;
+        const next = hidden
+          ? [...new Set([...s.hidden, id])]
+          : s.hidden.filter((h) => h !== id);
+        return { ...s, hidden: next };
+      });
 
     const removeHouseguest = (id: string) =>
       setState((s) => ({
@@ -426,8 +453,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const resetAll = () => setState(defaultState());
 
+    const hid = new Set(state.hidden);
     return {
-      state,
+      state: view,
       loaded,
       setSeasonName,
       setCurrentWeek,
@@ -436,6 +464,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       updateHouseguest,
       setHouseguestStatus,
       removeHouseguest,
+      hiddenHouseguests: state.houseguests.filter((h) => hid.has(h.id)),
+      setHouseguestHidden,
       updateTeam,
       draftHouseguest,
       undoLastPick,
@@ -451,7 +481,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       wikiError,
       resetAll,
     };
-  }, [state, loaded, syncStatus, wikiSyncedAt, wikiError]);
+  }, [state, view, loaded, syncStatus, wikiSyncedAt, wikiError]);
 
   return (
     <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

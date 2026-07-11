@@ -189,6 +189,8 @@ export function DraftPanel() {
     draftHouseguest,
     undoLastPick,
     resetDraft,
+    hiddenHouseguests,
+    setHouseguestHidden,
   } = useStore();
   const [focusedTeamId, setFocusedTeamId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -422,6 +424,29 @@ export function DraftPanel() {
           )}
         </div>
       </Card>
+
+      {hiddenHouseguests.length > 0 && (
+        <p className="text-xs text-[var(--muted)] px-1 flex items-center gap-2 flex-wrap">
+          🙈 Hidden until they air on TV:
+          {hiddenHouseguests.map((hg) => (
+            <button
+              key={hg.id}
+              onClick={() => {
+                if (
+                  confirm(
+                    `Reveal ${hg.name} for the whole family? Do this once their arrival has aired.`,
+                  )
+                )
+                  setHouseguestHidden(hg.id, false);
+              }}
+              className="underline decoration-dotted hover:text-foreground cursor-pointer"
+              title={`Reveal ${hg.name}`}
+            >
+              {hg.name} — reveal
+            </button>
+          ))}
+        </p>
+      )}
 
       {openHg && (
         <HouseguestCard houseguestId={openHg} onClose={() => setOpenHg(null)} />

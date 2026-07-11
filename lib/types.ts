@@ -66,6 +66,11 @@ export interface ScoreEvent {
 export interface LeagueState {
   seasonName: string;
   currentWeek: number;
+  /**
+   * Spoiler shield: houseguest ids hidden until their TV reveal. The sync
+   * keeps their data in state, but the UI hides them and their events.
+   */
+  hidden: string[];
   teamCount: number;
   picksPerTeam: number;
   houseguests: Houseguest[];
