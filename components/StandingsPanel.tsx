@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useStore } from "@/lib/store";
 import { computeStandings, standingsByWeek } from "@/lib/scoring";
+import { displayName } from "@/lib/wiki";
 import { HouseguestCard } from "./HouseguestCard";
 import { LeagueChat } from "./LeagueChat";
 import { StandingsChart } from "./StandingsChart";
@@ -129,7 +130,7 @@ export function StandingsPanel() {
                               : ""
                           }`}
                         >
-                          {hs.houseguest.name}
+                          {displayName(hs.houseguest.name)}
                         </span>
                         <StatusBadge status={hs.houseguest.status} />
                         <span className="w-10 text-right">

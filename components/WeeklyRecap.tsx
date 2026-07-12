@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useStore } from "@/lib/store";
+import { displayName } from "@/lib/wiki";
 import { Card, Points, SectionTitle } from "./ui";
 
 /**
@@ -60,7 +61,7 @@ export function WeeklyRecap() {
   const withTeam = (name: string): string => {
     const hg = state.houseguests.find((h) => h.name === name);
     const team = hg ? teamByHg.get(hg.id) : undefined;
-    return team ? `${name} (${team.name})` : name;
+    return team ? `${displayName(name)} (${team.name})` : displayName(name);
   };
 
   const lines: string[] = [];
@@ -74,8 +75,8 @@ export function WeeklyRecap() {
     const team = teamByHg.get(hg.id);
     lines.push(
       team
-        ? `🚪 ${hg.name} was evicted — a blow for ${team.name}.`
-        : `🚪 ${hg.name} was evicted.`,
+        ? `🚪 ${displayName(hg.name)} was evicted — a blow for ${team.name}.`
+        : `🚪 ${displayName(hg.name)} was evicted.`,
     );
   }
   const leader = rows[0];

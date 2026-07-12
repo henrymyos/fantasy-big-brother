@@ -4,18 +4,13 @@ import { useState } from "react";
 import { useStore } from "@/lib/store";
 import { teamOnTheClock, undraftedHouseguests } from "@/lib/scoring";
 import { scoutFor } from "@/lib/scouting";
+import { displayName } from "@/lib/wiki";
 import type { Houseguest, Team } from "@/lib/types";
 import { HouseguestCard } from "./HouseguestCard";
 import { Avatar, Button, Card, EmptyState, Input } from "./ui";
 
 /** Dark ink used on top of solid team-color pick cards. */
 const CARD_INK = "#0b1020";
-
-function splitName(full: string): { first: string; last: string } {
-  const parts = full.trim().split(" ");
-  if (parts.length === 1) return { first: "", last: parts[0] };
-  return { first: parts.slice(0, -1).join(" "), last: parts[parts.length - 1] };
-}
 
 /** Board grid: one column per team, one row per round, snake numbering. */
 function DraftGrid({
@@ -91,7 +86,6 @@ function DraftGrid({
           : "";
 
       if (pick && hg) {
-        const { first, last } = splitName(hg.name);
         const out = hg.status === "evicted";
         cells.push(
           <button
@@ -122,22 +116,12 @@ function DraftGrid({
             <div
               className={`flex-1 min-w-0 ${out ? "opacity-60" : ""}`}
             >
-              {first && (
-                <p
-                  className={`text-xs leading-tight break-words ${
-                    out ? "line-through" : ""
-                  }`}
-                  style={{ color: CARD_INK, opacity: 0.75 }}
-                >
-                  {first}
-                </p>
-              )}
               <p
-                className={`font-bold text-[15px] leading-tight break-words ${
+                className={`font-bold text-base leading-tight break-words ${
                   out ? "line-through" : ""
                 }`}
               >
-                {last}
+                {displayName(hg.name)}
               </p>
             </div>
           </button>,
@@ -344,7 +328,7 @@ export function DraftPanel() {
                       <Avatar name={hg.name} src={hg.photoUrl} size={28} />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-medium">
-                          {hg.name}
+                          {displayName(hg.name)}
                         </span>
                         {scout && (
                           <span className="block truncate text-[11px] text-[var(--muted)]">

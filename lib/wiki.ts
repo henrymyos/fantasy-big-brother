@@ -98,6 +98,18 @@ export function samePerson(a: string, b: string): boolean {
   );
 }
 
+/**
+ * The name the show actually uses: a quoted nickname if they have one
+ * ('Kamuela "Kamu" Kirk' → "Kamu"), otherwise everything but the last name
+ * ("La Trice Verrett" → "La Trice").
+ */
+export function displayName(name: string): string {
+  const nick = name.match(/["'“”]([^"'“”]+)["'“”]/)?.[1]?.trim();
+  if (nick) return nick;
+  const tokens = name.trim().split(/\s+/);
+  return tokens.length > 1 ? tokens.slice(0, -1).join(" ") : name.trim();
+}
+
 /** Derive an approximate week number from the day a houseguest left. */
 export function weekFromDay(day: number | null): number | null {
   if (!day) return null;
