@@ -99,41 +99,41 @@ function DraftGrid({
             type="button"
             onClick={() => onOpenHouseguest(hg.id)}
             title={`About ${hg.name}`}
-            className={`relative flex flex-col justify-end min-h-[92px] rounded-lg overflow-hidden transition text-left cursor-pointer hover:ring-2 hover:ring-white/40 hover:brightness-110${dim}`}
-            style={{ background: team.color, border: `2px solid ${team.color}` }}
+            className={`relative flex items-center gap-2 p-2 min-h-[76px] rounded-lg transition text-left cursor-pointer hover:ring-2 hover:ring-white/30 hover:brightness-110${dim}`}
+            style={{ background: team.color, color: CARD_INK }}
           >
-            {hg.photoUrl && (
-              // Remote fandom thumbnails; the static export has no optimizer.
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={hg.photoUrl}
-                alt=""
-                loading="lazy"
-                referrerPolicy="no-referrer"
-                className={`absolute inset-0 w-full h-full object-cover object-top ${
-                  out ? "grayscale opacity-80" : ""
-                }`}
-              />
-            )}
-            <span className="absolute top-1 left-1 z-10 text-[9px] font-mono leading-none px-1 py-0.5 rounded bg-black/55 text-white/85">
+            <span
+              className="absolute top-1 right-1.5 text-[9px] font-mono leading-none"
+              style={{ color: CARD_INK, opacity: 0.55 }}
+            >
               {pickLabel}
             </span>
+            {/* photo half */}
+            <div className="w-1/2 grid place-items-center shrink-0">
+              <Avatar
+                name={hg.name}
+                src={hg.photoUrl}
+                active={!out}
+                size={52}
+                className="ring-2 ring-black/20"
+              />
+            </div>
+            {/* name half */}
             <div
-              className={`relative z-10 w-full px-1.5 pt-5 pb-1 bg-gradient-to-t from-black/85 via-black/45 to-transparent ${
-                out ? "opacity-85" : ""
-              }`}
+              className={`flex-1 min-w-0 ${out ? "opacity-60" : ""}`}
             >
               {first && (
                 <p
-                  className={`text-[10px] leading-tight text-white/75 truncate ${
+                  className={`text-[10px] leading-tight break-words ${
                     out ? "line-through" : ""
                   }`}
+                  style={{ color: CARD_INK, opacity: 0.75 }}
                 >
                   {first}
                 </p>
               )}
               <p
-                className={`font-bold text-[13px] leading-tight text-white break-words ${
+                className={`font-bold text-[13px] leading-tight break-words ${
                   out ? "line-through" : ""
                 }`}
               >
@@ -146,7 +146,7 @@ function DraftGrid({
         cells.push(
           <div
             key={`${round}-${team.id}`}
-            className={`relative flex items-center justify-center p-1.5 min-h-[92px] rounded-lg bg-accent/10 ring-2 ring-accent ring-inset transition${dim}`}
+            className={`relative flex items-center justify-center p-1.5 min-h-[76px] rounded-lg bg-accent/10 ring-2 ring-accent ring-inset transition${dim}`}
           >
             <span className="absolute top-1.5 left-1.5 text-accent text-[10px] font-mono">
               {pickLabel}
@@ -160,7 +160,7 @@ function DraftGrid({
         cells.push(
           <div
             key={`${round}-${team.id}`}
-            className={`flex flex-col p-1.5 min-h-[92px] rounded-lg bg-[var(--surface-2)]/60 transition${dim}`}
+            className={`flex flex-col p-1.5 min-h-[76px] rounded-lg bg-[var(--surface-2)]/60 transition${dim}`}
           >
             <span className="text-[10px] font-mono text-[var(--muted)]/50">
               {pickLabel}
