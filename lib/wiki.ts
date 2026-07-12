@@ -103,11 +103,22 @@ export function samePerson(a: string, b: string): boolean {
  * ('Kamuela "Kamu" Kirk' → "Kamu"), otherwise everything but the last name
  * ("La Trice Verrett" → "La Trice").
  */
+/** Surname particles, so "Jason De Puy" → "Jason" (not "Jason De"). */
+const SURNAME_PARTICLES = new Set([
+  "de", "del", "della", "der", "den", "da", "di", "van", "von", "la", "le",
+  "dos", "du", "st", "st.",
+]);
+
 export function displayName(name: string): string {
   const nick = name.match(/["'“”]([^"'“”]+)["'“”]/)?.[1]?.trim();
   if (nick) return nick;
   const tokens = name.trim().split(/\s+/);
-  return tokens.length > 1 ? tokens.slice(0, -1).join(" ") : name.trim();
+  if (tokens.length <= 1) return name.trim();
+  let cut = tokens.length - 1; // drop the surname…
+  while (cut > 1 && SURNAME_PARTICLES.has(tokens[cut - 1].toLowerCase())) {
+    cut--; // …and any particles attached to it
+  }
+  return tokens.slice(0, cut).join(" ");
 }
 
 /** Derive an approximate week number from the day a houseguest left. */
