@@ -19,7 +19,7 @@ import {
   LEAGUES_TABLE,
   supabase,
 } from "./supabase";
-import type { RealtimeChannel } from "@supabase/supabase-js";
+import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
 import type {
   DraftPick,
   Houseguest,
@@ -40,6 +40,56 @@ export type SyncStatus = "local" | "connecting" | "online" | "saving" | "error";
 
 function uid(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+interface LeagueRow {
+  state: LeagueState;
+  rev: number;
+}
+
+async function readRow(sb: SupabaseClient): Promise<LeagueRow | null> {
+  const { data } = await sb
+    .from(LEAGUES_TABLE)
+    .select("state,rev")
+    .eq("id", FAMILY_LEAGUE_ID)
+    .maybeSingle();
+  return (data as LeagueRow) ?? null;
+}
+
+/**
+ * Rebase local edits onto a newer server state after a write conflict.
+ * Additive merge: the server copy wins wholesale, then local-only picks
+ * (the thing that races hardest on draft night) and local-only manual
+ * events are re-applied. Pick numbering is recomputed so a rebased pick
+ * slots cleanly into the snake.
+ */
+function mergeStates(server: LeagueState, local: LeagueState): LeagueState {
+  const pickIds = new Set(server.picks.map((p) => p.id));
+  const pickedHgs = new Set(server.picks.map((p) => p.houseguestId));
+  const extraPicks = local.picks.filter(
+    (p) => !pickIds.has(p.id) && !pickedHgs.has(p.houseguestId),
+  );
+  let picks = server.picks;
+  if (extraPicks.length > 0) {
+    const teamCount = Math.max(1, server.teams.length);
+    picks = [...server.picks, ...extraPicks]
+      .sort((a, b) => a.overall - b.overall || a.id.localeCompare(b.id))
+      .map((p, i) => ({
+        ...p,
+        overall: i + 1,
+        round: Math.floor(i / teamCount) + 1,
+      }));
+  }
+
+  const eventIds = new Set(server.events.map((e) => e.id));
+  const extraEvents = local.events.filter(
+    (e) => e.source !== "wiki" && !eventIds.has(e.id),
+  );
+  const events =
+    extraEvents.length > 0 ? [...server.events, ...extraEvents] : server.events;
+
+  if (picks === server.picks && events === server.events) return server;
+  return { ...server, picks, events };
 }
 
 
@@ -120,6 +170,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   // the realtime echo loop (don't re-save what we just received, and ignore
   // realtime events for our own writes).
   const lastSyncedJson = useRef<string | null>(null);
+  const revRef = useRef(0);
   const channelRef = useRef<RealtimeChannel | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stateRef = useRef(state);
@@ -145,24 +196,27 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const sb = supabase;
     let active = true;
 
-    const read = async () =>
-      (
-        await sb
-          .from(LEAGUES_TABLE)
-          .select("state")
-          .eq("id", FAMILY_LEAGUE_ID)
-          .maybeSingle()
-      ).data as { state: LeagueState } | null;
+    // Adopt a fresher server copy. If this tab has unsaved local edits,
+    // rebase them on top instead of throwing them away; the persist effect
+    // then saves the merged result against the new revision.
+    const adopt = (row: LeagueRow) => {
+      revRef.current = row.rev;
+      const server = migrate(row.state);
+      const serverJson = JSON.stringify(server);
+      const hasLocalEdits =
+        lastSyncedJson.current !== null &&
+        JSON.stringify(stateRef.current) !== lastSyncedJson.current;
+      lastSyncedJson.current = serverJson;
+      setState(hasLocalEdits ? mergeStates(server, stateRef.current) : server);
+    };
 
     // A tab that slept through realtime messages (phone locked, laptop lid)
     // must re-read before its next save can clobber everyone else's edits.
     const refetch = async () => {
-      const row = await read();
+      const row = await readRow(sb);
       if (!active || !row?.state) return;
-      const json = JSON.stringify(row.state);
-      if (json === lastSyncedJson.current) return;
-      lastSyncedJson.current = json;
-      setState(migrate(row.state));
+      if (row.rev === revRef.current) return; // already current
+      adopt(row);
     };
     const onVisible = () => {
       if (document.visibilityState === "visible") void refetch();
@@ -171,7 +225,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     (async () => {
       setSyncStatus("connecting");
-      let row = await read();
+      let row = await readRow(sb);
       if (!row) {
         // First device ever: seed the shared row with whatever we have.
         // A same-moment race on another device is harmless — duplicates are
@@ -184,13 +238,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           },
           { onConflict: "id", ignoreDuplicates: true },
         );
-        row = await read();
+        row = await readRow(sb);
       }
       if (!active) return;
       if (!row?.state) {
         setSyncStatus("error");
         return;
       }
+      revRef.current = row.rev;
       lastSyncedJson.current = JSON.stringify(row.state);
       setState(migrate(row.state));
 
@@ -205,12 +260,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             filter: `id=eq.${FAMILY_LEAGUE_ID}`,
           },
           (payload) => {
-            const incoming = payload.new as { state?: LeagueState } | null;
+            const incoming = payload.new as {
+              state?: LeagueState;
+              rev?: number;
+            } | null;
             if (!incoming?.state) return;
-            const json = JSON.stringify(incoming.state);
-            if (json === lastSyncedJson.current) return; // our own echo
-            lastSyncedJson.current = json;
-            setState(migrate(incoming.state));
+            const rev = incoming.rev ?? 0;
+            if (rev <= revRef.current) return; // our own echo / stale
+            adopt({ state: incoming.state, rev });
           },
         )
         .subscribe();
@@ -303,17 +360,49 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (!supabase || !connected) return;
     const sb = supabase;
     const json = JSON.stringify(state);
+    // Any state change (including inbound) supersedes a pending save.
+    if (saveTimer.current) clearTimeout(saveTimer.current);
     if (json === lastSyncedJson.current) return; // unchanged / inbound echo
 
-    if (saveTimer.current) clearTimeout(saveTimer.current);
     setSyncStatus("saving");
     saveTimer.current = setTimeout(async () => {
-      lastSyncedJson.current = json;
-      const { error } = await sb
+      // Superseded while waiting (e.g. a realtime update landed): skip —
+      // the effect re-ran for the newer state and owns the save now.
+      if (JSON.stringify(stateRef.current) !== json) return;
+      const myRev = revRef.current;
+      const { data, error } = await sb
         .from(LEAGUES_TABLE)
-        .update({ state, updated_at: new Date().toISOString() })
-        .eq("id", FAMILY_LEAGUE_ID);
-      setSyncStatus(error ? "error" : "online");
+        .update({
+          state,
+          rev: myRev + 1,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", FAMILY_LEAGUE_ID)
+        .eq("rev", myRev)
+        .select("rev");
+      if (!error && data && data.length > 0) {
+        revRef.current = myRev + 1;
+        lastSyncedJson.current = json;
+        setSyncStatus("online");
+        return;
+      }
+      if (error) {
+        setSyncStatus("error");
+        return;
+      }
+      // Conflict: someone saved rev+1 first. Rebase our edits onto their
+      // copy; setting lastSyncedJson to the server copy makes this effect
+      // re-run and save the merged result against the new revision.
+      const row = await readRow(sb);
+      if (!row) {
+        setSyncStatus("error");
+        return;
+      }
+      revRef.current = row.rev;
+      const server = migrate(row.state);
+      lastSyncedJson.current = JSON.stringify(server);
+      setState(mergeStates(server, stateRef.current));
+      setSyncStatus("online");
     }, 600);
   }, [state, loaded, connected]);
 
