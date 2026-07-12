@@ -189,6 +189,7 @@ export function DraftPanel() {
     draftHouseguest,
     undoLastPick,
     resetDraft,
+    shuffleDraftOrder,
     hiddenHouseguests,
     setHouseguestHidden,
   } = useStore();
@@ -312,6 +313,19 @@ export function DraftPanel() {
             )}
           </div>
           <div className="flex gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={shuffleDraftOrder}
+              disabled={state.picks.length > 0}
+              title={
+                state.picks.length > 0
+                  ? "Order locks once drafting starts — Reset draft first"
+                  : "Randomize who picks first"
+              }
+            >
+              🎲 Shuffle order
+            </Button>
             <Button
               variant="ghost"
               size="sm"
