@@ -96,15 +96,9 @@ function DraftGrid({
             className={`relative flex flex-col px-1.5 pt-1.5 pb-2 min-h-[88px] rounded-lg transition cursor-pointer hover:ring-2 hover:ring-white/30 hover:brightness-110${dim}`}
             style={{ background: team.color, color: CARD_INK }}
           >
-            <span
-              className="absolute top-1 right-1.5 text-[9px] font-mono leading-none"
-              style={{ color: CARD_INK, opacity: 0.55 }}
-            >
-              {pickLabel}
-            </span>
             {/* name on top */}
             <p
-              className={`w-full px-3 text-center font-bold text-[13px] leading-tight truncate ${
+              className={`w-full px-0.5 text-center font-bold text-[13px] leading-tight truncate ${
                 out ? "line-through opacity-60" : ""
               }`}
             >

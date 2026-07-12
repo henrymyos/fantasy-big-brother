@@ -15,37 +15,9 @@ const TABS: { id: TabId; label: string; icon: string }[] = [
   { id: "standings", label: "Standings", icon: "🏆" },
 ];
 
-function statusLine(
-  supabaseEnabled: boolean,
-  syncStatus: string,
-  wikiSyncedAt: number | null,
-  wikiError: string | null,
-): string {
-  const shared = !supabaseEnabled
-    ? "saved in this browser"
-    : syncStatus === "error"
-      ? "sync error — retrying"
-      : syncStatus === "connecting"
-        ? "connecting…"
-        : "live for the whole family";
-  const wiki = wikiError
-    ? "Wikipedia check failed — retrying"
-    : wikiSyncedAt
-      ? "results auto-update from Wikipedia"
-      : "checking Wikipedia…";
-  return `${shared} · ${wiki}`;
-}
-
 export default function Home() {
-  const {
-    state,
-    loaded,
-    setSeasonName,
-    supabaseEnabled,
-    syncStatus,
-    wikiSyncedAt,
-    wikiError,
-  } = useStore();
+  const { state, loaded, setSeasonName, supabaseEnabled, syncStatus } =
+    useStore();
   // Land on the draft board while the draft is live, standings after.
   // null = no tab clicked yet, so derive the default from the league.
   const [tab, setTab] = useState<TabId | null>(null);
@@ -61,23 +33,25 @@ export default function Home() {
           <div className="size-9 rounded-full grid place-items-center bg-accent/15 text-xl">
             👁️
           </div>
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 flex items-center gap-2">
             <input
               value={state.seasonName}
               onChange={(e) => setSeasonName(e.target.value)}
-              className="bg-transparent text-lg font-bold tracking-tight outline-none focus:underline w-full"
+              className="bg-transparent text-lg font-bold tracking-tight outline-none focus:underline w-full min-w-0"
               aria-label="Season name"
             />
-            <p className="text-xs text-[var(--muted)] flex items-center gap-1.5">
-              <span
-                className={`inline-block size-1.5 rounded-full ${
-                  supabaseEnabled && syncStatus !== "error"
-                    ? "bg-emerald-400"
-                    : "bg-amber-400"
-                }`}
-              />
-              {statusLine(supabaseEnabled, syncStatus, wikiSyncedAt, wikiError)}
-            </p>
+            <span
+              title={
+                supabaseEnabled && syncStatus !== "error"
+                  ? "Synced for the whole family"
+                  : "Sync problem — check connection"
+              }
+              className={`inline-block size-1.5 rounded-full shrink-0 ${
+                supabaseEnabled && syncStatus !== "error"
+                  ? "bg-emerald-400"
+                  : "bg-amber-400"
+              }`}
+            />
           </div>
           <Button
             variant="ghost"

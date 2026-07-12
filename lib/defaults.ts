@@ -117,7 +117,7 @@ export function defaultTeams(count: number): Team[] {
 export function defaultState(): LeagueState {
   const teamCount = 4;
   return {
-    seasonName: "Big Brother 28 Family League",
+    seasonName: "BB 28 Fam League",
     currentWeek: 1,
     hidden: [],
     revealed: null,
