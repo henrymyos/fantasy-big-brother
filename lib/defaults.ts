@@ -6,7 +6,7 @@ import type { LeagueState, ScoringRule, Team } from "./types";
 export const TEAM_COLORS = [
   "#ef4444", // red
   "#3b82f6", // blue
-  "#d97706", // amber
+  "#0891b2", // cyan
   "#16a34a", // green
   "#ec4899", // pink
   "#a855f7", // purple
