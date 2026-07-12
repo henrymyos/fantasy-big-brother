@@ -7,12 +7,10 @@ import { scoutFor } from "@/lib/scouting";
 import { displayName } from "@/lib/wiki";
 import type { Houseguest, Team } from "@/lib/types";
 import { HouseguestCard } from "./HouseguestCard";
-import { Avatar, Button, Card, EmptyState, Input } from "./ui";
+import { Avatar, Button, Card, EmptyState } from "./ui";
 
 /** Dark ink used on top of solid team-color pick cards. */
 const CARD_INK = "#0b1020";
-
-type BottomTab = "available" | "teams";
 
 /** Board grid: one column per team, one row per round, snake numbering. */
 function DraftGrid({
@@ -172,22 +170,14 @@ export function DraftPanel() {
     setHouseguestHidden,
   } = useStore();
   const [focusedTeamId, setFocusedTeamId] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
   const [openHg, setOpenHg] = useState<string | null>(null);
-  const [bottomTab, setBottomTab] = useState<BottomTab>("available");
-  const [viewTeamId, setViewTeamId] = useState<string | null>(null);
 
   const clock = teamOnTheClock(state);
   const totalPicks = state.teams.length * state.picksPerTeam;
   const onClockTeam = state.teams.find((t) => t.id === clock.teamId);
-  const viewingTeam =
-    state.teams.find((t) => t.id === viewTeamId) ?? state.teams[0];
   // Available pool, best projected fantasy value first (our scouting board).
   const available = undraftedHouseguests(state)
     .filter((h) => h.status !== "evicted")
-    .filter(
-      (h) => !search || h.name.toLowerCase().includes(search.toLowerCase()),
-    )
     .sort(
       (a, b) =>
         (scoutFor(a.name)?.rank ?? 99) - (scoutFor(b.name)?.rank ?? 99),
@@ -263,145 +253,29 @@ export function DraftPanel() {
           </p>
         </div>
 
-        {/* Bottom panel — Available / Teams tabs, like the disc golf draft room */}
+        {/* Available pool, ranked by projected points */}
         <div className="border-t border-[var(--border)]">
-          <div className="flex px-4 pt-2">
-            {(
-              [
-                { key: "available", label: "Available" },
-                { key: "teams", label: "Teams" },
-              ] as { key: BottomTab; label: string }[]
-            ).map((t) => (
-              <button
-                key={t.key}
-                onClick={() => setBottomTab(t.key)}
-                className={`flex-1 pb-2 text-sm font-semibold text-center border-b-2 transition cursor-pointer ${
-                  bottomTab === t.key
-                    ? "text-foreground border-accent"
-                    : "text-[var(--muted)] border-transparent hover:text-foreground"
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
+          <div className="px-4 pt-3 pb-2">
+            <p className="text-sm font-semibold">
+              Available{" "}
+              <span className="text-xs text-[var(--muted)] font-normal">
+                · {available.length} undrafted · ranked by projected points
+              </span>
+            </p>
           </div>
-
-          {bottomTab === "teams" ? (
-            <div className="px-4 py-3 space-y-3">
-              <div className="flex gap-1 bg-[var(--surface-2)] rounded-lg p-0.5 w-fit">
-                {state.teams.map((team) => (
-                  <button
-                    key={team.id}
-                    onClick={() => setViewTeamId(team.id)}
-                    className="px-3 py-1 rounded-md text-xs font-semibold transition cursor-pointer"
-                    style={
-                      viewingTeam?.id === team.id
-                        ? { background: team.color, color: CARD_INK }
-                        : { color: "var(--muted)" }
-                    }
-                  >
-                    {team.name}
-                  </button>
-                ))}
-              </div>
-              <ul className="space-y-1.5">
-                {Array.from({ length: state.picksPerTeam }).map((_, i) => {
-                  const round = i + 1;
-                  const pick = viewingTeam
-                    ? state.picks.find(
-                        (p) =>
-                          p.teamId === viewingTeam.id && p.round === round,
-                      )
-                    : undefined;
-                  const hg = pick
-                    ? state.houseguests.find(
-                        (h) => h.id === pick.houseguestId,
-                      )
-                    : undefined;
-                  const color = viewingTeam?.color ?? "#888";
-                  return (
-                    <li
-                      key={round}
-                      className="flex items-center gap-3 p-2.5 rounded-xl border"
-                      style={{
-                        background: hg ? `${color}1f` : "var(--surface-2)",
-                        borderColor: hg ? `${color}40` : "var(--border)",
-                      }}
-                    >
-                      <span
-                        className="w-10 shrink-0 text-center text-xs font-bold py-1 rounded-lg"
-                        style={{ color, background: `${color}20` }}
-                      >
-                        R{round}
-                      </span>
-                      {hg ? (
-                        <button
-                          onClick={() => setOpenHg(hg.id)}
-                          className="flex-1 min-w-0 flex items-center gap-2 text-left cursor-pointer"
-                          title={`About ${hg.name}`}
-                        >
-                          <Avatar
-                            name={hg.name}
-                            src={hg.photoUrl}
-                            active={hg.status !== "evicted"}
-                            size={24}
-                          />
-                          <span
-                            className={`text-sm font-medium truncate ${
-                              hg.status === "evicted"
-                                ? "line-through text-[var(--muted)]"
-                                : ""
-                            }`}
-                          >
-                            {displayName(hg.name)}
-                          </span>
-                        </button>
-                      ) : (
-                        <span className="flex-1 text-sm italic text-[var(--muted)]">
-                          Empty
-                        </span>
-                      )}
-                      <span className="text-xs font-mono text-[var(--muted)] shrink-0">
-                        {pick ? `#${pick.overall}` : `Slot ${round}`}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ) : state.houseguests.length === 0 ? (
-            <div className="px-4 py-4">
+          {state.houseguests.length === 0 ? (
+            <div className="px-4 pb-4">
               <EmptyState>
                 The cast syncs in from Wikipedia automatically — check back
                 soon.
               </EmptyState>
             </div>
-          ) : (
-            <>
-              <div className="flex items-center justify-between gap-3 px-4 pt-2.5 pb-2">
-                <p className="text-xs text-[var(--muted)]">
-                  {available.length} undrafted · ranked by projected points
-                </p>
-                <Input
-                  type="text"
-                  placeholder="Search…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="!w-36 !py-1 text-xs"
-                />
-              </div>
-              {available.length === 0 ? (
-                <p className="text-sm text-[var(--muted)] text-center py-6">
-                  {search
-                    ? "No one matches that search."
-                    : "Everyone's been drafted."}
-                </p>
-              ) : null}
-            </>
-          )}
-          {bottomTab === "available" &&
-          state.houseguests.length > 0 &&
-          available.length > 0 ? (
+          ) : available.length === 0 ? (
+            <p className="text-sm text-[var(--muted)] text-center py-6">
+              Everyone&apos;s been drafted.
+            </p>
+          ) : null}
+          {state.houseguests.length > 0 && available.length > 0 ? (
             <ul className="max-h-[320px] overflow-y-auto divide-y divide-[var(--border)]">
               {available.map((hg: Houseguest) => {
                 const scout = scoutFor(hg.name);
