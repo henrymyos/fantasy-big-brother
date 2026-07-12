@@ -47,8 +47,16 @@ function RuleRow({
   );
 }
 
+const GATE_STAGES = [
+  { value: 0, label: "Nothing from this week yet" },
+  { value: 1, label: "HOH winner revealed" },
+  { value: 2, label: "Veto & other comps revealed" },
+  { value: 3, label: "Whole week — eviction included" },
+];
+
 export function ScoringSettings({ onClose }: { onClose: () => void }) {
-  const { state, updateRule } = useStore();
+  const { state, updateRule, setRevealed } = useStore();
+  const gate = state.revealed;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -97,6 +105,76 @@ export function ScoringSettings({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="flex-1 overflow-y-auto px-5">
+          {/* Spoiler gate */}
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/60 p-3.5 mb-4">
+            <p className="text-[11px] font-semibold text-[var(--muted)] uppercase tracking-wide">
+              📺 Watched through
+            </p>
+            <p className="text-xs text-[var(--muted)] mt-1">
+              Results the family hasn&apos;t seen on TV stay hidden until you
+              advance this.
+            </p>
+            <div className="flex items-center gap-3 mt-2.5">
+              <label className="flex items-center gap-2 text-sm">
+                Week
+                <input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={gate?.week ?? 1}
+                  disabled={!gate}
+                  onChange={(e) =>
+                    gate &&
+                    setRevealed({
+                      week: Number(e.target.value),
+                      stage: gate.stage,
+                    })
+                  }
+                  className="w-16 rounded-lg bg-[var(--surface)] border border-[var(--border)] px-2 py-1 text-sm text-right font-mono tabular-nums outline-none focus:border-accent disabled:opacity-40"
+                />
+              </label>
+            </div>
+            <div className="space-y-1 mt-2">
+              {GATE_STAGES.map((s) => (
+                <label
+                  key={s.value}
+                  className={`flex items-center gap-2 text-xs rounded-lg border px-2.5 py-1.5 cursor-pointer transition ${
+                    gate?.stage === s.value
+                      ? "border-accent bg-accent/10"
+                      : "border-[var(--border)] hover:bg-[var(--surface)]"
+                  } ${!gate ? "opacity-40 pointer-events-none" : ""}`}
+                >
+                  <input
+                    type="radio"
+                    name="gate-stage"
+                    className="accent-[var(--accent)]"
+                    checked={gate?.stage === s.value}
+                    disabled={!gate}
+                    onChange={() =>
+                      gate && setRevealed({ week: gate.week, stage: s.value })
+                    }
+                  />
+                  {s.label}
+                </label>
+              ))}
+            </div>
+            <label className="flex items-center gap-2 text-xs cursor-pointer mt-2.5">
+              <input
+                type="checkbox"
+                className="accent-[var(--accent)]"
+                checked={!gate}
+                onChange={(e) =>
+                  setRevealed(
+                    e.target.checked
+                      ? null
+                      : { week: state.currentWeek, stage: 3 },
+                  )
+                }
+              />
+              No gate — show everything as soon as it syncs
+            </label>
+          </div>
+
           <p className="text-[11px] font-semibold text-[var(--muted)] uppercase tracking-wide pt-1">
             Scored automatically
           </p>

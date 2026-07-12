@@ -117,7 +117,6 @@ interface StoreValue {
   updateTeam: (id: string, patch: Partial<Team>) => void;
   // draft
   draftHouseguest: (houseguestId: string, teamId?: string) => void;
-  undoLastPick: () => void;
   resetDraft: () => void;
   /** Shuffle the pick order — only before the first pick is made. */
   shuffleDraftOrder: () => void;
@@ -561,9 +560,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         return { ...s, picks: [...s.picks, pick] };
       });
 
-    const undoLastPick = () =>
-      setState((s) => ({ ...s, picks: s.picks.slice(0, -1) }));
-
     const resetDraft = () => setState((s) => ({ ...s, picks: [] }));
 
     const shuffleDraftOrder = () =>
@@ -626,7 +622,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setRevealed,
       updateTeam,
       draftHouseguest,
-      undoLastPick,
       resetDraft,
       shuffleDraftOrder,
       addRule,

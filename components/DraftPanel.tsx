@@ -6,7 +6,7 @@ import { teamOnTheClock, undraftedHouseguests } from "@/lib/scoring";
 import { scoutFor } from "@/lib/scouting";
 import type { Houseguest, Team } from "@/lib/types";
 import { HouseguestCard } from "./HouseguestCard";
-import { Avatar, Button, Card, EmptyState, Input, SectionTitle } from "./ui";
+import { Avatar, Button, Card, EmptyState, Input } from "./ui";
 
 /** Dark ink used on top of solid team-color pick cards. */
 const CARD_INK = "#0b1020";
@@ -190,10 +190,7 @@ function DraftGrid({
 export function DraftPanel() {
   const {
     state,
-    updateTeam,
-    setLeagueShape,
     draftHouseguest,
-    undoLastPick,
     resetDraft,
     shuffleDraftOrder,
     hiddenHouseguests,
@@ -217,81 +214,8 @@ export function DraftPanel() {
         (scoutFor(a.name)?.rank ?? 99) - (scoutFor(b.name)?.rank ?? 99),
     );
 
-  const draftedCount = (teamId: string) =>
-    state.picks.filter((p) => p.teamId === teamId).length;
-
   return (
     <div className="space-y-5">
-      {/* League shape + teams */}
-      <Card>
-        <SectionTitle
-          title="The players"
-          subtitle="One team per family member — tweak a name or color anytime."
-          right={
-            <div className="flex items-end gap-3">
-              <label className="text-xs text-[var(--muted)]">
-                Teams
-                <Input
-                  type="number"
-                  min={2}
-                  max={8}
-                  value={state.teamCount}
-                  onChange={(e) =>
-                    setLeagueShape(Number(e.target.value), state.picksPerTeam)
-                  }
-                  className="w-20 mt-1"
-                />
-              </label>
-              <label className="text-xs text-[var(--muted)]">
-                Picks / team
-                <Input
-                  type="number"
-                  min={1}
-                  max={8}
-                  value={state.picksPerTeam}
-                  onChange={(e) =>
-                    setLeagueShape(state.teamCount, Number(e.target.value))
-                  }
-                  className="w-24 mt-1"
-                />
-              </label>
-            </div>
-          }
-        />
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {state.teams.map((team) => (
-            <div
-              key={team.id}
-              className="rounded-xl border border-[var(--border)] p-3 bg-[var(--surface-2)]"
-              style={{ borderTopColor: team.color, borderTopWidth: 3 }}
-            >
-              <div className="flex items-center gap-2">
-                <input
-                  type="color"
-                  value={team.color}
-                  onChange={(e) =>
-                    updateTeam(team.id, { color: e.target.value })
-                  }
-                  className="size-7 rounded cursor-pointer bg-transparent border-0 shrink-0"
-                  aria-label={`${team.name} color`}
-                />
-                <input
-                  value={team.name}
-                  onChange={(e) =>
-                    updateTeam(team.id, { name: e.target.value })
-                  }
-                  className="flex-1 min-w-0 bg-transparent font-semibold outline-none focus:underline"
-                  aria-label="Player name"
-                />
-              </div>
-              <p className="text-xs text-[var(--muted)] mt-2">
-                {draftedCount(team.id)} / {state.picksPerTeam} picks
-              </p>
-            </div>
-          ))}
-        </div>
-      </Card>
-
       {/* Draft board + available pool, one card like the big-screen boards */}
       <Card className="!p-0 overflow-hidden">
         {/* Status bar */}
@@ -331,14 +255,6 @@ export function DraftPanel() {
               }
             >
               🎲 Shuffle order
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={undoLastPick}
-              disabled={state.picks.length === 0}
-            >
-              Undo pick
             </Button>
             <Button
               variant="ghost"
