@@ -109,7 +109,15 @@ const SURNAME_PARTICLES = new Set([
   "dos", "du", "st", "st.",
 ]);
 
+/** Houseguests the family calls by something other than the default rule. */
+const DISPLAY_OVERRIDES: [match: string, display: string][] = [
+  ["Rick Devens", "Devens"],
+];
+
 export function displayName(name: string): string {
+  for (const [match, display] of DISPLAY_OVERRIDES) {
+    if (samePerson(name, match)) return display;
+  }
   const nick = name.match(/["'“”]([^"'“”]+)["'“”]/)?.[1]?.trim();
   if (nick) return nick;
   const tokens = name.trim().split(/\s+/);
