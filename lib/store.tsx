@@ -143,17 +143,32 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const sb = supabase;
     let active = true;
 
+    const read = async () =>
+      (
+        await sb
+          .from(LEAGUES_TABLE)
+          .select("state")
+          .eq("id", FAMILY_LEAGUE_ID)
+          .maybeSingle()
+      ).data as { state: LeagueState } | null;
+
+    // A tab that slept through realtime messages (phone locked, laptop lid)
+    // must re-read before its next save can clobber everyone else's edits.
+    const refetch = async () => {
+      const row = await read();
+      if (!active || !row?.state) return;
+      const json = JSON.stringify(row.state);
+      if (json === lastSyncedJson.current) return;
+      lastSyncedJson.current = json;
+      setState(migrate(row.state));
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void refetch();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
     (async () => {
       setSyncStatus("connecting");
-      const read = async () =>
-        (
-          await sb
-            .from(LEAGUES_TABLE)
-            .select("state")
-            .eq("id", FAMILY_LEAGUE_ID)
-            .maybeSingle()
-        ).data as { state: LeagueState } | null;
-
       let row = await read();
       if (!row) {
         // First device ever: seed the shared row with whatever we have.
@@ -203,6 +218,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       active = false;
+      document.removeEventListener("visibilitychange", onVisible);
       if (channelRef.current) sb.removeChannel(channelRef.current);
       channelRef.current = null;
     };
@@ -310,8 +326,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     let houseguests = state.houseguests.filter((h) => !hid.has(h.id));
     let events = state.events.filter((e) => !hid.has(e.houseguestId));
     if (g) {
+      // The gate only hides synced results — manually logged events were
+      // entered by the family, so they've been watched by definition.
       events = events.filter(
         (e) =>
+          e.source !== "wiki" ||
           e.week < g.week ||
           (e.week === g.week && eventStage(e.ruleId) <= g.stage),
       );

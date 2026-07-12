@@ -118,8 +118,13 @@ export function applyWikiSeason(
     statusById[h.id] ? { ...h, ...statusById[h.id] } : h,
   );
 
-  // Rebuild wiki-sourced scoring events (idempotent re-sync).
+  // Rebuild wiki-sourced scoring events (idempotent re-sync). A result the
+  // family already logged by hand (same person, rule, week) is skipped so a
+  // later Wikipedia edit can't double-count it.
   const manual = s.events.filter((e) => e.source !== "wiki");
+  const manualKeys = new Set(
+    manual.map((e) => `${e.houseguestId}|${e.ruleId}|${e.week}`),
+  );
   const wikiEvents: ScoreEvent[] = [];
   const seenIds = new Set<string>();
   const push = (name: string, concept: string, week: number) => {
@@ -127,6 +132,7 @@ export function applyWikiSeason(
     if (!hgId) return;
     const ruleId = resolveRuleId(s.rules, concept);
     if (!ruleId) return;
+    if (manualKeys.has(`${hgId}|${ruleId}|${week}`)) return;
     let id = `ev-wiki-${concept}-w${week}-${hgId}`;
     for (let n = 2; seenIds.has(id); n++) {
       id = `ev-wiki-${concept}-w${week}-${hgId}-${n}`;
@@ -140,6 +146,25 @@ export function applyWikiSeason(
       source: "wiki",
     });
   };
+  // Premiere Time Trip safety wins (aired in episode 1) — Wikipedia's
+  // tables never logged them, so the sync awards them itself. Emitted
+  // WITHOUT source:"wiki" so the spoiler gate treats them as watched;
+  // the manual-event dedup above keeps them from duplicating on re-sync.
+  for (const name of ['Jack "Rome" Seymour', "Chuk Anyanwu", "Jason De Puy"]) {
+    const hgId = matchId(name);
+    const ruleId = resolveRuleId(s.rules, "comp");
+    if (!hgId || !ruleId) continue;
+    if (manualKeys.has(`${hgId}|${ruleId}|1`)) continue;
+    manualKeys.add(`${hgId}|${ruleId}|1`);
+    wikiEvents.push({
+      id: `ev-ep1-safety-${hgId}`,
+      houseguestId: hgId,
+      ruleId,
+      week: 1,
+      note: "Time Trip safety (premiere)",
+    });
+  }
+
   season.hohWins.forEach((n, i) => push(n, "hoh", i + 1));
   season.vetoWins.forEach((n, i) => push(n, "veto", i + 1));
   season.otherCompWins.forEach((n, i) => push(n, "comp", i + 1));
