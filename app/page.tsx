@@ -7,6 +7,7 @@ import { Button } from "@/components/ui";
 import { StandingsPanel } from "@/components/StandingsPanel";
 import { DraftPanel } from "@/components/DraftPanel";
 import { ScoringSettings } from "@/components/ScoringSettings";
+import { SpoilerGate, gateLabel } from "@/components/SpoilerGate";
 
 type TabId = "standings" | "draft";
 
@@ -51,6 +52,7 @@ export default function Home() {
   // null = no tab clicked yet, so derive the default from the league.
   const [tab, setTab] = useState<TabId | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [gateOpen, setGateOpen] = useState(false);
   const activeTab =
     tab ?? (teamOnTheClock(state).complete ? "standings" : "draft");
 
@@ -81,6 +83,15 @@ export default function Home() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setGateOpen(true)}
+              aria-label="Spoiler gate"
+              title="Hide results the family hasn't watched yet"
+            >
+              📺 {gateLabel(state.revealed)}
+            </Button>
             <Button
               variant="ghost"
               size="sm"
@@ -146,6 +157,7 @@ export default function Home() {
       </footer>
 
       {settingsOpen && <ScoringSettings onClose={() => setSettingsOpen(false)} />}
+      {gateOpen && <SpoilerGate onClose={() => setGateOpen(false)} />}
     </div>
   );
 }

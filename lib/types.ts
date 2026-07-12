@@ -71,6 +71,12 @@ export interface LeagueState {
    * keeps their data in state, but the UI hides them and their events.
    */
   hidden: string[];
+  /**
+   * Spoiler gate: how far the family has watched. Results after this point
+   * stay hidden even though the sync has them. null = no gate, show all.
+   * stage: 0 = week not aired · 1 = HOH · 2 = veto & comps · 3 = full week.
+   */
+  revealed: { week: number; stage: number } | null;
   teamCount: number;
   picksPerTeam: number;
   houseguests: Houseguest[];

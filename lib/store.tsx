@@ -62,6 +62,7 @@ interface StoreValue {
   /** Spoiler shield: raw entries hidden from view until they air on TV. */
   hiddenHouseguests: Houseguest[];
   setHouseguestHidden: (id: string, hidden: boolean) => void;
+  setRevealed: (gate: { week: number; stage: number } | null) => void;
   // teams
   updateTeam: (id: string, patch: Partial<Team>) => void;
   // draft
@@ -97,8 +98,13 @@ function migrate(parsed: Partial<LeagueState>): LeagueState {
     picks: parsed.picks ?? [],
     events: parsed.events ?? [],
     hidden: parsed.hidden ?? [],
+    revealed: parsed.revealed ?? null,
   };
 }
+
+/** How late in a week's episodes each synced result airs. */
+const EVENT_STAGE: Record<string, number> = { "r-hoh": 1, "r-pov": 2, "r-comp": 2 };
+const eventStage = (ruleId: string): number => EVENT_STAGE[ruleId] ?? 3;
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<LeagueState>(defaultState);
@@ -293,16 +299,35 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }, 600);
   }, [state, loaded, connected]);
 
-  // Spoiler shield: what consumers see. Hidden houseguests (not yet revealed
-  // on TV) and their events are filtered out; the raw state keeps everything
-  // so sync, persistence, and the eventual reveal lose nothing.
+  // Spoiler shield + gate: what consumers see. Hidden houseguests and any
+  // results past the family's watched-through point are filtered out; the
+  // raw state keeps everything so sync, persistence, and reveals lose
+  // nothing.
   const view = useMemo<LeagueState>(() => {
-    if (state.hidden.length === 0) return state;
+    const g = state.revealed;
+    if (state.hidden.length === 0 && !g) return state;
     const hid = new Set(state.hidden);
+    let houseguests = state.houseguests.filter((h) => !hid.has(h.id));
+    let events = state.events.filter((e) => !hid.has(e.houseguestId));
+    if (g) {
+      events = events.filter(
+        (e) =>
+          e.week < g.week ||
+          (e.week === g.week && eventStage(e.ruleId) <= g.stage),
+      );
+      // An exit the family hasn't watched yet still shows as "in the house".
+      houseguests = houseguests.map((h) =>
+        h.exitWeek != null &&
+        (h.exitWeek > g.week || (h.exitWeek === g.week && g.stage < 3))
+          ? { ...h, status: "active" as const, exitWeek: null }
+          : h,
+      );
+    }
     return {
       ...state,
-      houseguests: state.houseguests.filter((h) => !hid.has(h.id)),
-      events: state.events.filter((e) => !hid.has(e.houseguestId)),
+      houseguests,
+      events,
+      currentWeek: g ? Math.min(state.currentWeek, g.week) : state.currentWeek,
     };
   }, [state]);
 
@@ -371,6 +396,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               }
             : h,
         ),
+      }));
+
+    const setRevealed = (gate: { week: number; stage: number } | null) =>
+      setState((s) => ({
+        ...s,
+        revealed: gate
+          ? {
+              week: Math.max(1, Math.min(99, Math.round(gate.week))),
+              stage: Math.max(0, Math.min(3, Math.round(gate.stage))),
+            }
+          : null,
       }));
 
     const setHouseguestHidden = (id: string, hidden: boolean) =>
@@ -466,6 +502,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       removeHouseguest,
       hiddenHouseguests: state.houseguests.filter((h) => hid.has(h.id)),
       setHouseguestHidden,
+      setRevealed,
       updateTeam,
       draftHouseguest,
       undoLastPick,
