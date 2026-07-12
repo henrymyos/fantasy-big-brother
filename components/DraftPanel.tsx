@@ -99,7 +99,7 @@ function DraftGrid({
             type="button"
             onClick={() => onOpenHouseguest(hg.id)}
             title={`About ${hg.name}`}
-            className={`relative flex items-center gap-2 p-2 min-h-[76px] rounded-lg transition text-left cursor-pointer hover:ring-2 hover:ring-white/30 hover:brightness-110${dim}`}
+            className={`relative flex items-center gap-1.5 px-1.5 py-2 min-h-[84px] rounded-lg transition text-left cursor-pointer hover:ring-2 hover:ring-white/30 hover:brightness-110${dim}`}
             style={{ background: team.color, color: CARD_INK }}
           >
             <span
@@ -114,7 +114,7 @@ function DraftGrid({
                 name={hg.name}
                 src={hg.photoUrl}
                 active={!out}
-                size={52}
+                size={68}
                 className="ring-2 ring-black/20"
               />
             </div>
@@ -124,7 +124,7 @@ function DraftGrid({
             >
               {first && (
                 <p
-                  className={`text-[10px] leading-tight break-words ${
+                  className={`text-xs leading-tight break-words ${
                     out ? "line-through" : ""
                   }`}
                   style={{ color: CARD_INK, opacity: 0.75 }}
@@ -133,7 +133,7 @@ function DraftGrid({
                 </p>
               )}
               <p
-                className={`font-bold text-[13px] leading-tight break-words ${
+                className={`font-bold text-[15px] leading-tight break-words ${
                   out ? "line-through" : ""
                 }`}
               >
@@ -146,7 +146,7 @@ function DraftGrid({
         cells.push(
           <div
             key={`${round}-${team.id}`}
-            className={`relative flex items-center justify-center p-1.5 min-h-[76px] rounded-lg bg-accent/10 ring-2 ring-accent ring-inset transition${dim}`}
+            className={`relative flex items-center justify-center p-1.5 min-h-[84px] rounded-lg bg-accent/10 ring-2 ring-accent ring-inset transition${dim}`}
           >
             <span className="absolute top-1.5 left-1.5 text-accent text-[10px] font-mono">
               {pickLabel}
@@ -160,7 +160,7 @@ function DraftGrid({
         cells.push(
           <div
             key={`${round}-${team.id}`}
-            className={`flex flex-col p-1.5 min-h-[76px] rounded-lg bg-[var(--surface-2)]/60 transition${dim}`}
+            className={`flex flex-col p-1.5 min-h-[84px] rounded-lg bg-[var(--surface-2)]/60 transition${dim}`}
           >
             <span className="text-[10px] font-mono text-[var(--muted)]/50">
               {pickLabel}
