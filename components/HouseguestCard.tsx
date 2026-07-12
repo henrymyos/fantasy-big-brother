@@ -1,9 +1,14 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useStore } from "@/lib/store";
 import { scoutFor, SCOUTING_TOTAL } from "@/lib/scouting";
 import { Avatar, Points, StatusBadge } from "./ui";
+
+/** Fandom thumbnails end in /scale-to-width-down/320 — drop it for full res. */
+function fullSizePhoto(url: string): string {
+  return url.replace(/\/scale-to-width-down\/\d+/, "");
+}
 
 /** Tap-a-houseguest popup: photo, status, and their scoring history. */
 export function HouseguestCard({
@@ -14,10 +19,16 @@ export function HouseguestCard({
   onClose: () => void;
 }) {
   const { state } = useStore();
+  const [photoOpen, setPhotoOpen] = useState(false);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key !== "Escape") return;
+      // Escape peels one layer at a time: lightbox first, then the card.
+      setPhotoOpen((open) => {
+        if (!open) onClose();
+        return false;
+      });
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -57,12 +68,28 @@ export function HouseguestCard({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start gap-4 p-5 pb-4">
-          <Avatar
-            name={hg.name}
-            src={hg.photoUrl}
-            active={hg.status !== "evicted"}
-            size={72}
-          />
+          {hg.photoUrl ? (
+            <button
+              onClick={() => setPhotoOpen(true)}
+              className="shrink-0 cursor-zoom-in rounded-full hover:ring-2 hover:ring-accent/60 transition"
+              title={`Enlarge ${hg.name}'s photo`}
+              aria-label={`Enlarge ${hg.name}'s photo`}
+            >
+              <Avatar
+                name={hg.name}
+                src={hg.photoUrl}
+                active={hg.status !== "evicted"}
+                size={72}
+              />
+            </button>
+          ) : (
+            <Avatar
+              name={hg.name}
+              src={hg.photoUrl}
+              active={hg.status !== "evicted"}
+              size={72}
+            />
+          )}
           <div className="min-w-0 flex-1">
             <p className="font-bold text-lg leading-tight">{hg.name}</p>
             <div className="flex items-center gap-2 mt-1.5 flex-wrap">
@@ -161,6 +188,36 @@ export function HouseguestCard({
           )}
         </div>
       </div>
+
+      {/* Photo lightbox — sits above the card; click or Escape closes it. */}
+      {photoOpen && hg.photoUrl && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/85 backdrop-blur-sm grid place-items-center p-4 cursor-zoom-out"
+          onClick={(e) => {
+            e.stopPropagation();
+            setPhotoOpen(false);
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${hg.name} photo`}
+        >
+          <figure className="text-center">
+            {/* Remote fandom image; the static export has no optimizer. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={fullSizePhoto(hg.photoUrl)}
+              alt={hg.name}
+              referrerPolicy="no-referrer"
+              className={`max-h-[80dvh] max-w-full rounded-2xl object-contain shadow-2xl ${
+                hg.status === "evicted" ? "grayscale" : ""
+              }`}
+            />
+            <figcaption className="mt-3 text-sm font-semibold text-white">
+              {hg.name}
+            </figcaption>
+          </figure>
+        </div>
+      )}
     </div>
   );
 }
