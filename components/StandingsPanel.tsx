@@ -9,7 +9,7 @@ import { LeagueChat } from "./LeagueChat";
 import { StandingsChart } from "./StandingsChart";
 import { WeeklyRecap } from "./WeeklyRecap";
 import { WinnerOdds } from "./WinnerOdds";
-import { Avatar, Card, EmptyState, Points, SectionTitle, StatusBadge } from "./ui";
+import { Avatar, Card, EmptyState, SectionTitle } from "./ui";
 
 const MEDALS = ["🥇", "🥈", "🥉"];
 
@@ -18,7 +18,6 @@ export function StandingsPanel() {
   const [openHg, setOpenHg] = useState<string | null>(null);
   const standings = computeStandings(state);
   const leader = standings[0];
-  const maxPoints = Math.max(1, ...standings.map((s) => s.points));
   const champ = state.houseguests.find((h) => h.status === "winner");
 
   const anyDrafted = state.picks.length > 0;
@@ -70,78 +69,54 @@ export function StandingsPanel() {
             Run the draft to see standings come to life.
           </EmptyState>
         ) : (
-          <div className="space-y-3">
+          <div className="grid grid-cols-4 gap-1.5">
             {standings.map((s, i) => (
               <div
                 key={s.team.id}
-                className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] overflow-hidden"
+                className="rounded-xl bg-[var(--surface-2)] overflow-hidden"
+                style={{ borderTop: `3px solid ${s.team.color}` }}
               >
-                <div className="flex items-center gap-3 px-4 py-3">
-                  <div className="w-8 text-center text-lg font-bold tabular-nums">
-                    {MEDALS[i] ?? s.rank}
-                  </div>
-                  <div
-                    className="size-3 rounded-full shrink-0"
-                    style={{ background: s.team.color }}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold truncate">{s.team.name}</div>
-                    <div className="text-xs text-[var(--muted)]">
-                      {s.activeCount} still in the house
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xl font-bold font-mono tabular-nums">
-                      {s.points}
-                    </div>
-                    <div className="text-[10px] text-[var(--muted)]">
-                      points
-                    </div>
-                  </div>
+                <div className="px-1 pt-1.5 pb-1 text-center">
+                  <p className="text-[11px] font-bold truncate">
+                    {MEDALS[i] ?? `#${s.rank}`} {s.team.name}
+                  </p>
+                  <p className="text-lg font-bold font-mono tabular-nums leading-tight">
+                    {s.points}
+                  </p>
+                  <p className="text-[9px] text-[var(--muted)]">pts</p>
                 </div>
-                {/* progress bar */}
-                <div className="h-1.5 bg-[var(--surface)]">
-                  <div
-                    className="h-full transition-all"
-                    style={{
-                      width: `${(s.points / maxPoints) * 100}%`,
-                      background: s.team.color,
-                    }}
-                  />
-                </div>
-                {/* roster */}
-                <ul className="px-4 py-2.5 grid sm:grid-cols-2 gap-x-4 gap-y-1.5">
-                  {s.houseguests.map((hs) => (
-                    <li key={hs.houseguest.id}>
-                      <button
-                        onClick={() => setOpenHg(hs.houseguest.id)}
-                        className="w-full flex items-center gap-2 text-sm rounded-lg px-1 py-0.5 -mx-1 hover:bg-[var(--surface)] transition cursor-pointer text-left"
-                        title={`View ${hs.houseguest.name}'s season`}
-                      >
-                        <Avatar
-                          name={hs.houseguest.name}
-                          src={hs.houseguest.photoUrl}
-                          active={hs.houseguest.status !== "evicted"}
-                          size={22}
-                        />
-                        <span
-                          className={`flex-1 min-w-0 truncate ${
-                            hs.houseguest.status === "evicted"
-                              ? "line-through text-[var(--muted)]"
-                              : ""
-                          }`}
+                <ul className="px-1 pb-1.5 space-y-0.5">
+                  {s.houseguests.map((hs) => {
+                    const out = hs.houseguest.status === "evicted";
+                    return (
+                      <li key={hs.houseguest.id}>
+                        <button
+                          onClick={() => setOpenHg(hs.houseguest.id)}
+                          className="w-full flex items-center gap-1.5 rounded-md px-1 py-1 hover:bg-[var(--surface)] transition cursor-pointer text-left"
+                          title={`View ${hs.houseguest.name}'s season`}
                         >
-                          {displayName(hs.houseguest.name)}
-                        </span>
-                        <StatusBadge status={hs.houseguest.status} />
-                        <span className="w-10 text-right">
-                          <Points value={hs.points} />
-                        </span>
-                      </button>
-                    </li>
-                  ))}
+                          <Avatar
+                            name={hs.houseguest.name}
+                            src={hs.houseguest.photoUrl}
+                            active={!out}
+                            size={18}
+                          />
+                          <span
+                            className={`flex-1 min-w-0 truncate text-xs ${
+                              out ? "line-through text-red-400" : ""
+                            }`}
+                          >
+                            {displayName(hs.houseguest.name)}
+                          </span>
+                          <span className="hidden sm:block text-[10px] font-mono tabular-nums text-[var(--muted)] shrink-0">
+                            {hs.points}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
                   {s.houseguests.length === 0 && (
-                    <li className="text-sm text-[var(--muted)]">
+                    <li className="text-xs text-[var(--muted)] px-1">
                       No picks yet.
                     </li>
                   )}
