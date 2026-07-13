@@ -11,6 +11,8 @@ import { WeeklyRecap } from "./WeeklyRecap";
 import { WinnerOdds } from "./WinnerOdds";
 import { Avatar, Card, EmptyState, SectionTitle } from "./ui";
 
+const MEDALS = ["🥇", "🥈", "🥉", "💩"];
+
 export function StandingsPanel() {
   const { state } = useStore();
   const [openHg, setOpenHg] = useState<string | null>(null);
@@ -68,12 +70,15 @@ export function StandingsPanel() {
           </EmptyState>
         ) : (
           <div className="grid grid-cols-4 gap-1.5">
-            {standings.map((s) => (
-              <div
-                key={s.team.id}
-                className="rounded-xl bg-[var(--surface-2)] overflow-hidden"
-                style={{ borderTop: `3px solid ${s.team.color}` }}
-              >
+            {standings.map((s, i) => (
+              <div key={s.team.id}>
+                <div className="text-center text-2xl leading-none mb-1.5" aria-hidden>
+                  {MEDALS[i] ?? ""}
+                </div>
+                <div
+                  className="rounded-xl bg-[var(--surface-2)] overflow-hidden"
+                  style={{ borderTop: `3px solid ${s.team.color}` }}
+                >
                 <div className="px-1 pt-1.5 pb-1 text-center">
                   <p className="text-sm font-bold truncate underline underline-offset-2">
                     {s.team.name}
@@ -119,6 +124,7 @@ export function StandingsPanel() {
                     </li>
                   )}
                 </ul>
+                </div>
               </div>
             ))}
           </div>
