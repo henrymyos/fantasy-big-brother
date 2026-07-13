@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useStore } from "@/lib/store";
 import { computeStandings, standingsByWeek } from "@/lib/scoring";
-import { leagueWinOdds } from "@/lib/simulate";
+import { leagueWinOddsCached } from "@/lib/simulate";
 import { displayName } from "@/lib/wiki";
 import { HouseguestCard } from "./HouseguestCard";
 import { LeagueChat } from "./LeagueChat";
@@ -21,7 +21,7 @@ export function StandingsPanel() {
   const leader = standings[0];
   const champ = state.houseguests.find((h) => h.status === "winner");
 
-  const winSim = useMemo(() => leagueWinOdds(state), [state]);
+  const winSim = leagueWinOddsCached(state);
   const anyDrafted = state.picks.length > 0;
   const anyScored = anyDrafted && state.events.length > 0;
   const weekly = anyScored ? standingsByWeek(state) : null;

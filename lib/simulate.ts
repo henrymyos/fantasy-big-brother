@@ -155,3 +155,13 @@ export function leagueWinOdds(
   }
   return out;
 }
+
+// Render-friendly cache: the store's view object is referentially stable
+// between state changes, so one simulation per distinct state.
+const simCache = new WeakMap<LeagueState, Record<string, number> | null>();
+export function leagueWinOddsCached(
+  state: LeagueState,
+): Record<string, number> | null {
+  if (!simCache.has(state)) simCache.set(state, leagueWinOdds(state));
+  return simCache.get(state) ?? null;
+}
