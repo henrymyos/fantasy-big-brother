@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useStore } from "@/lib/store";
+import { fetchWinOdds, oddsFor, type WinOdds } from "@/lib/odds";
 import { scoutFor, SCOUTING_TOTAL } from "@/lib/scouting";
 import { Avatar, Points, StatusBadge } from "./ui";
 
@@ -20,6 +21,17 @@ export function HouseguestCard({
 }) {
   const { state } = useStore();
   const [photoOpen, setPhotoOpen] = useState(false);
+  const [odds, setOdds] = useState<WinOdds[] | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetchWinOdds().then((o) => {
+      if (active) setOdds(o);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -124,6 +136,14 @@ export function HouseguestCard({
           <span className="text-xs text-[var(--muted)]">
             points · {history.length} scoring events
           </span>
+          {odds !== null && oddsFor(odds, hg.name) !== null && (
+            <span className="ml-auto text-xs text-[var(--muted)]">
+              📈 <span className="font-semibold text-foreground">
+                {oddsFor(odds, hg.name)}%
+              </span>{" "}
+              to win (Kalshi)
+            </span>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 pb-5">

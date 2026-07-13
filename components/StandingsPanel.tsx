@@ -8,6 +8,7 @@ import { HouseguestCard } from "./HouseguestCard";
 import { LeagueChat } from "./LeagueChat";
 import { StandingsChart } from "./StandingsChart";
 import { WeeklyRecap } from "./WeeklyRecap";
+import { WinnerOdds } from "./WinnerOdds";
 import { Avatar, Card, EmptyState, Points, SectionTitle, StatusBadge } from "./ui";
 
 const MEDALS = ["🥇", "🥈", "🥉"];
@@ -152,6 +153,7 @@ export function StandingsPanel() {
       </Card>
 
       <WeeklyRecap />
+      <WinnerOdds />
       </div>
 
       <LeagueChat />
