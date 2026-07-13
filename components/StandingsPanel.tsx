@@ -71,7 +71,7 @@ export function StandingsPanel() {
             Run the draft to see standings come to life.
           </EmptyState>
         ) : (
-          <div className="grid grid-cols-4 gap-1.5">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
             {standings.map((s, i) => (
               <div key={s.team.id}>
                 <div className="text-center text-2xl leading-none mb-1.5" aria-hidden>
@@ -121,7 +121,7 @@ export function StandingsPanel() {
                           >
                             {displayName(hs.houseguest.name)}
                           </span>
-                          <span className="hidden sm:block text-[10px] font-mono tabular-nums text-[var(--muted)] shrink-0">
+                          <span className="text-[10px] font-mono tabular-nums text-[var(--muted)] shrink-0">
                             {hs.points}
                           </span>
                         </button>
