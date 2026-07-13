@@ -51,16 +51,6 @@ export function StandingsPanel() {
         </Card>
       )}
 
-      {weekly && (
-        <Card>
-          <SectionTitle
-            title="The race"
-            subtitle="Cumulative team points, week by week."
-          />
-          <StandingsChart data={weekly} />
-        </Card>
-      )}
-
       <Card>
         <SectionTitle
           title="Standings"
@@ -140,6 +130,16 @@ export function StandingsPanel() {
           </div>
         )}
       </Card>
+
+      {weekly && (
+        <Card>
+          <SectionTitle
+            title="The race"
+            subtitle="Cumulative team points, week by week."
+          />
+          <StandingsChart data={weekly} />
+        </Card>
+      )}
 
       <WeeklyRecap />
       <WinnerOdds />
