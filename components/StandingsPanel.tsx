@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useStore } from "@/lib/store";
 import { computeStandings, standingsByWeek } from "@/lib/scoring";
+import { leagueWinOdds } from "@/lib/simulate";
 import { displayName } from "@/lib/wiki";
 import { HouseguestCard } from "./HouseguestCard";
 import { LeagueChat } from "./LeagueChat";
@@ -20,6 +21,7 @@ export function StandingsPanel() {
   const leader = standings[0];
   const champ = state.houseguests.find((h) => h.status === "winner");
 
+  const winSim = useMemo(() => leagueWinOdds(state), [state]);
   const anyDrafted = state.picks.length > 0;
   const anyScored = anyDrafted && state.events.length > 0;
   const weekly = anyScored ? standingsByWeek(state) : null;
@@ -87,6 +89,14 @@ export function StandingsPanel() {
                     {s.points}
                   </p>
                   <p className="text-[9px] text-[var(--muted)]">pts</p>
+                  {winSim && (
+                    <p
+                      className="text-[10px] font-semibold text-accent mt-0.5"
+                      title="Chance to win the league — simulated from current points, Kalshi odds, and comp-win projections"
+                    >
+                      {winSim[s.team.id] ?? 0}% to win
+                    </p>
+                  )}
                 </div>
                 <ul className="px-1 pb-1.5 space-y-0.5">
                   {s.houseguests.map((hs) => {
