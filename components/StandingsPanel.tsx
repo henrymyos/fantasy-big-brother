@@ -77,7 +77,7 @@ export function StandingsPanel() {
                 style={{ borderTop: `3px solid ${s.team.color}` }}
               >
                 <div className="px-1 pt-1.5 pb-1 text-center">
-                  <p className="text-[11px] font-bold truncate">
+                  <p className="text-sm font-bold truncate">
                     {MEDALS[i] ?? `#${s.rank}`} {s.team.name}
                   </p>
                   <p className="text-lg font-bold font-mono tabular-nums leading-tight">
@@ -99,10 +99,10 @@ export function StandingsPanel() {
                             name={hs.houseguest.name}
                             src={hs.houseguest.photoUrl}
                             active={!out}
-                            size={18}
+                            size={22}
                           />
                           <span
-                            className={`flex-1 min-w-0 truncate text-xs ${
+                            className={`flex-1 min-w-0 truncate text-sm font-medium ${
                               out ? "line-through text-red-400" : ""
                             }`}
                           >
