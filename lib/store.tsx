@@ -11,6 +11,7 @@ import {
 import { defaultState, defaultTeams, TEAM_COLORS } from "./defaults";
 import { fetchHouseguestPhoto } from "./photos";
 import { snakeOrder, teamOnTheClock } from "./scoring";
+import { autoGate, maxGate } from "./schedule";
 import { applyWikiSeason } from "./sync";
 import { fetchSeason } from "./wiki";
 import {
@@ -150,6 +151,7 @@ function migrate(parsed: Partial<LeagueState>): LeagueState {
     events: parsed.events ?? [],
     hidden: parsed.hidden ?? [],
     revealed: parsed.revealed ?? null,
+    odds: parsed.odds ?? null,
   };
 }
 
@@ -164,6 +166,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("local");
   const [wikiSyncedAt, setWikiSyncedAt] = useState<number | null>(null);
   const [wikiError, setWikiError] = useState<string | null>(null);
+  // Coarse clock so the auto-advancing spoiler gate opens even in an idle
+  // tab; ticks every 10 minutes.
+  const [nowTick, setNowTick] = useState(() => Date.now());
 
   // JSON of the last state written-to or read-from the server, used to break
   // the realtime echo loop (don't re-save what we just received, and ignore
@@ -176,6 +181,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
+
+  useEffect(() => {
+    const id = setInterval(() => setNowTick(Date.now()), 10 * 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   // On mount: hydrate the local cache.
   useEffect(() => {
@@ -410,7 +420,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   // raw state keeps everything so sync, persistence, and reveals lose
   // nothing.
   const view = useMemo<LeagueState>(() => {
-    const g = state.revealed;
+    // Effective gate: the family's manual setting or the air-schedule
+    // auto-advance (one day after each episode), whichever is further.
+    const g = state.revealed
+      ? maxGate(state.revealed, autoGate(nowTick))
+      : null;
     if (state.hidden.length === 0 && !g) return state;
     const hid = new Set(state.hidden);
     let houseguests = state.houseguests.filter((h) => !hid.has(h.id));
@@ -434,11 +448,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
     return {
       ...state,
+      revealed: g,
       houseguests,
       events,
       currentWeek: g ? Math.min(state.currentWeek, g.week) : state.currentWeek,
     };
-  }, [state]);
+  }, [state, nowTick]);
 
   const value = useMemo<StoreValue>(() => {
     const setSeasonName = (name: string) =>

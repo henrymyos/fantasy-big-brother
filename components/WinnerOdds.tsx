@@ -1,30 +1,30 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useStore } from "@/lib/store";
-import { fetchWinOdds, oddsFor, type WinOdds } from "@/lib/odds";
+import { oddsFor, pingOddsRefresh } from "@/lib/odds";
+import { gateKey } from "@/lib/schedule";
 import { displayName } from "@/lib/wiki";
 import { Avatar, Card, SectionTitle } from "./ui";
 
 /**
- * Live win-the-season odds from Kalshi's prediction market, matched to the
- * cast and colored by the team that drafted each houseguest.
+ * Kalshi win-the-season odds — a snapshot taken when the spoiler gate last
+ * advanced, so the numbers can't hint at anything the family hasn't seen.
  */
 export function WinnerOdds() {
   const { state } = useStore();
-  const [odds, setOdds] = useState<WinOdds[] | null>(null);
+  const snapshot = state.odds ?? null;
 
+  // If the snapshot is missing or behind the current gate, ask the server
+  // to refresh it (server re-checks the gate itself, so this can't force
+  // an early update).
+  const currentKey = gateKey(state.revealed);
+  const stale = !snapshot || snapshot.gateKey !== currentKey;
   useEffect(() => {
-    let active = true;
-    fetchWinOdds().then((o) => {
-      if (active) setOdds(o);
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
+    if (stale) pingOddsRefresh();
+  }, [stale]);
 
-  if (!odds || odds.length === 0) return null;
+  if (!snapshot || snapshot.list.length === 0) return null;
 
   const teamByHg = new Map(
     state.picks.map((p) => [
@@ -33,17 +33,21 @@ export function WinnerOdds() {
     ]),
   );
   const rows = state.houseguests
-    .map((hg) => ({ hg, pct: oddsFor(odds, hg.name) }))
+    .map((hg) => ({ hg, pct: oddsFor(snapshot.list, hg.name) }))
     .filter((r): r is { hg: (typeof r)["hg"]; pct: number } => r.pct !== null)
     .sort((a, b) => b.pct - a.pct);
   if (rows.length === 0) return null;
   const maxPct = Math.max(1, ...rows.map((r) => r.pct));
+  const asOf = new Date(snapshot.takenAt).toLocaleDateString([], {
+    month: "short",
+    day: "numeric",
+  });
 
   return (
     <Card>
       <SectionTitle
         title="Win odds"
-        subtitle="Live from Kalshi's prediction market. Traders watch the feeds, so odds can run a little ahead of the episodes."
+        subtitle={`Kalshi's market, frozen when the last episode's results unlocked (${asOf}) — no hints about what's next.`}
       />
       <div className="space-y-1.5">
         {rows.map(({ hg, pct }) => {

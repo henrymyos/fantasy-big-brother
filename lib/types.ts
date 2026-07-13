@@ -75,8 +75,19 @@ export interface LeagueState {
    * Spoiler gate: how far the family has watched. Results after this point
    * stay hidden even though the sync has them. null = no gate, show all.
    * stage: 0 = week not aired · 1 = HOH · 2 = veto & comps · 3 = full week.
+   * The view advances this automatically one day after each episode airs
+   * (lib/schedule.ts); the stored value acts as a manual floor.
    */
   revealed: { week: number; stage: number } | null;
+  /**
+   * Kalshi win-odds snapshot, refreshed only when the spoiler gate advances
+   * so the numbers never leak what happens in the next episode.
+   */
+  odds?: {
+    gateKey: number;
+    takenAt: number;
+    list: { name: string; pct: number }[];
+  } | null;
   teamCount: number;
   picksPerTeam: number;
   houseguests: Houseguest[];

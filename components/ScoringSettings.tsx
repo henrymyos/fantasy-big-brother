@@ -111,8 +111,9 @@ export function ScoringSettings({ onClose }: { onClose: () => void }) {
               📺 Watched through
             </p>
             <p className="text-xs text-[var(--muted)] mt-1">
-              Results the family hasn&apos;t seen on TV stay hidden until you
-              advance this.
+              Advances by itself one day after each episode airs. Set it
+              further ahead if you watched live; it never goes backwards past
+              the auto-schedule.
             </p>
             <div className="flex items-center gap-3 mt-2.5">
               <label className="flex items-center gap-2 text-sm">

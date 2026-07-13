@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useStore } from "@/lib/store";
-import { fetchWinOdds, oddsFor, type WinOdds } from "@/lib/odds";
+import { oddsFor } from "@/lib/odds";
 import { scoutFor, SCOUTING_TOTAL } from "@/lib/scouting";
 import { Avatar, Points, StatusBadge } from "./ui";
 
@@ -21,17 +21,7 @@ export function HouseguestCard({
 }) {
   const { state } = useStore();
   const [photoOpen, setPhotoOpen] = useState(false);
-  const [odds, setOdds] = useState<WinOdds[] | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    fetchWinOdds().then((o) => {
-      if (active) setOdds(o);
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
+  const odds = state.odds?.list ?? null;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

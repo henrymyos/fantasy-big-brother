@@ -121,6 +121,7 @@ export function defaultState(): LeagueState {
     currentWeek: 1,
     hidden: [],
     revealed: null,
+    odds: null,
     teamCount,
     picksPerTeam: 4,
     houseguests: [],

@@ -1,22 +1,24 @@
 import { samePerson } from "./wiki";
 
-/** Kalshi win-the-season probability, matched to houseguests by name. */
+/**
+ * Kalshi win-the-season odds. The numbers live in the shared league state
+ * as a gate-locked snapshot (see app/api/refresh-odds); clients only ping
+ * the refresh route when they notice the snapshot is behind the gate.
+ */
 export interface WinOdds {
   name: string;
   pct: number;
 }
 
-let cache: Promise<WinOdds[]> | null = null;
+let pinged = false;
 
-export function fetchWinOdds(): Promise<WinOdds[]> {
-  cache ??= fetch("/api/odds")
-    .then((r) => (r.ok ? r.json() : { odds: [] }))
-    .then((d: { odds?: WinOdds[] }) => d.odds ?? [])
-    .catch(() => {
-      cache = null; // let a later visit retry
-      return [];
-    });
-  return cache;
+/** Ask the server to refresh the snapshot (no-op unless the gate moved). */
+export function pingOddsRefresh(): void {
+  if (pinged) return;
+  pinged = true;
+  fetch("/api/refresh-odds").catch(() => {
+    pinged = false; // transient — allow a later retry
+  });
 }
 
 export function oddsFor(odds: WinOdds[], name: string): number | null {
