@@ -11,7 +11,7 @@ import {
 import { defaultState, defaultTeams, TEAM_COLORS } from "./defaults";
 import { fetchHouseguestPhoto } from "./photos";
 import { snakeOrder, teamOnTheClock } from "./scoring";
-import { autoGate, maxGate } from "./schedule";
+import { autoGate, eventStage, maxGate } from "./schedule";
 import { applyWikiSeason } from "./sync";
 import { fetchSeason } from "./wiki";
 import {
@@ -154,10 +154,6 @@ function migrate(parsed: Partial<LeagueState>): LeagueState {
     odds: parsed.odds ?? null,
   };
 }
-
-/** How late in a week's episodes each synced result airs. */
-const EVENT_STAGE: Record<string, number> = { "r-hoh": 1, "r-pov": 2, "r-comp": 2 };
-const eventStage = (ruleId: string): number => EVENT_STAGE[ruleId] ?? 3;
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<LeagueState>(defaultState);

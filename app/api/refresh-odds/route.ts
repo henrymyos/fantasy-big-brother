@@ -76,7 +76,20 @@ export async function GET() {
     }
     const next: LeagueState = {
       ...state,
-      odds: { gateKey: key, takenAt: Date.now(), list },
+      odds: {
+        gateKey: key,
+        takenAt: Date.now(),
+        list,
+        // Keep the snapshot being replaced so the UI can show movement
+        // arrows between two family-safe points in time.
+        prev: state.odds
+          ? {
+              gateKey: state.odds.gateKey,
+              takenAt: state.odds.takenAt,
+              list: state.odds.list,
+            }
+          : null,
+      },
     };
     const { data: updated } = await sb
       .from(LEAGUES_TABLE)

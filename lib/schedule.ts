@@ -37,6 +37,41 @@ function buildSchedule(): { t: number; gate: Gate }[] {
 
 const REVEALS = buildSchedule();
 
+/** How late in a week's episodes each synced result airs. */
+const EVENT_STAGE: Record<string, number> = {
+  "r-hoh": 1,
+  "r-pov": 2,
+  "r-comp": 2,
+};
+export const eventStage = (ruleId: string): number =>
+  EVENT_STAGE[ruleId] ?? 3;
+
+/** What each gate stage unlocks, for user-facing copy. */
+export const STAGE_LABEL: Record<number, string> = {
+  1: "HOH results",
+  2: "veto & comp results",
+  3: "eviction results",
+};
+
+export interface UpcomingReveal {
+  gate: Gate;
+  /** When the episode airs. */
+  airsAt: number;
+  /** When its results unlock in the app (air + 1 day). */
+  revealsAt: number;
+}
+
+/** The first scheduled reveal beyond the given gate, or null at season end. */
+export function nextRevealAfter(g: Gate | null): UpcomingReveal | null {
+  const k = gateKey(g);
+  for (const r of REVEALS) {
+    if (r.gate.week * 10 + r.gate.stage > k) {
+      return { gate: r.gate, airsAt: r.t - DAY, revealsAt: r.t };
+    }
+  }
+  return null;
+}
+
 /** The furthest gate whose reveal moment (air + 1 day) has passed. */
 export function autoGate(now: number): Gate | null {
   let gate: Gate | null = null;

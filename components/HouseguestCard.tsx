@@ -46,6 +46,12 @@ export function HouseguestCard({
     : undefined;
 
   const scout = scoutFor(hg.name);
+  const kalshiPct = odds ? oddsFor(odds, hg.name) : null;
+  const prevList = state.odds?.prev?.list ?? null;
+  const kalshiPrev =
+    kalshiPct !== null && prevList ? oddsFor(prevList, hg.name) : null;
+  const kalshiDelta =
+    kalshiPct !== null && kalshiPrev !== null ? kalshiPct - kalshiPrev : null;
   const history = state.events
     .filter((e) => e.houseguestId === hg.id)
     .map((e) => ({ event: e, rule: rules.get(e.ruleId) }))
@@ -126,11 +132,22 @@ export function HouseguestCard({
           <span className="text-xs text-[var(--muted)]">
             points · {history.length} scoring events
           </span>
-          {odds !== null && oddsFor(odds, hg.name) !== null && (
+          {kalshiPct !== null && (
             <span className="ml-auto text-xs text-[var(--muted)]">
               📈 <span className="font-semibold text-foreground">
-                {oddsFor(odds, hg.name)}%
-              </span>{" "}
+                {kalshiPct}%
+              </span>
+              {kalshiDelta !== null && kalshiDelta !== 0 && (
+                <span
+                  className={
+                    kalshiDelta > 0 ? "text-emerald-300" : "text-red-300"
+                  }
+                  title="Movement since the previous reveal's snapshot"
+                >
+                  {" "}
+                  {kalshiDelta > 0 ? `▲${kalshiDelta}` : `▼${-kalshiDelta}`}
+                </span>
+              )}{" "}
               to win (Kalshi)
             </span>
           )}

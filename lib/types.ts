@@ -63,6 +63,13 @@ export interface ScoreEvent {
   source?: "wiki";
 }
 
+/** One gate-locked capture of Kalshi's win-the-season market. */
+export interface OddsSnapshot {
+  gateKey: number;
+  takenAt: number;
+  list: { name: string; pct: number }[];
+}
+
 export interface LeagueState {
   seasonName: string;
   currentWeek: number;
@@ -81,13 +88,10 @@ export interface LeagueState {
   revealed: { week: number; stage: number } | null;
   /**
    * Kalshi win-odds snapshot, refreshed only when the spoiler gate advances
-   * so the numbers never leak what happens in the next episode.
+   * so the numbers never leak what happens in the next episode. `prev` is
+   * the snapshot this one replaced, kept for movement arrows.
    */
-  odds?: {
-    gateKey: number;
-    takenAt: number;
-    list: { name: string; pct: number }[];
-  } | null;
+  odds?: (OddsSnapshot & { prev?: OddsSnapshot | null }) | null;
   teamCount: number;
   picksPerTeam: number;
   houseguests: Houseguest[];

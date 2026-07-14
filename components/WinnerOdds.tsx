@@ -32,9 +32,18 @@ export function WinnerOdds() {
       state.teams.find((t) => t.id === p.teamId),
     ]),
   );
+  const prevList = snapshot.prev?.list ?? null;
   const rows = state.houseguests
-    .map((hg) => ({ hg, pct: oddsFor(snapshot.list, hg.name) }))
-    .filter((r): r is { hg: (typeof r)["hg"]; pct: number } => r.pct !== null)
+    .map((hg) => {
+      const pct = oddsFor(snapshot.list, hg.name);
+      const prev = prevList ? oddsFor(prevList, hg.name) : null;
+      return {
+        hg,
+        pct,
+        delta: pct !== null && prev !== null ? pct - prev : null,
+      };
+    })
+    .filter((r): r is (typeof r) & { pct: number } => r.pct !== null)
     .sort((a, b) => b.pct - a.pct);
   if (rows.length === 0) return null;
   const maxPct = Math.max(1, ...rows.map((r) => r.pct));
@@ -50,7 +59,7 @@ export function WinnerOdds() {
         subtitle={`Kalshi's market, frozen when the last episode's results unlocked (${asOf}) — no hints about what's next.`}
       />
       <div className="space-y-1.5">
-        {rows.map(({ hg, pct }) => {
+        {rows.map(({ hg, pct, delta }) => {
           const team = teamByHg.get(hg.id);
           const out = hg.status === "evicted";
           return (
@@ -75,6 +84,20 @@ export function WinnerOdds() {
               <span className="w-9 text-right font-mono tabular-nums text-xs">
                 {pct}%
               </span>
+              {prevList && (
+                <span
+                  className={`w-8 shrink-0 text-[10px] font-mono tabular-nums ${
+                    delta && delta > 0
+                      ? "text-emerald-300"
+                      : delta && delta < 0
+                        ? "text-red-300"
+                        : "text-[var(--muted)]"
+                  }`}
+                  title="Movement since the previous reveal's snapshot"
+                >
+                  {delta ? (delta > 0 ? `▲${delta}` : `▼${-delta}`) : ""}
+                </span>
+              )}
             </div>
           );
         })}
