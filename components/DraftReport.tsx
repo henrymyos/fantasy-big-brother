@@ -2,25 +2,27 @@
 
 import { useStore } from "@/lib/store";
 import { computeHouseguestScores } from "@/lib/scoring";
-import { scoutFor } from "@/lib/scouting";
+import { simulateSeasonCached } from "@/lib/simulate";
 import { displayName } from "@/lib/wiki";
 import type { DraftPick, Houseguest, Team } from "@/lib/types";
 import { Card, SectionTitle } from "./ui";
 
 /**
- * Draft report card: letter grades from pre-season scouting value (how far
- * below their projected rank each pick was grabbed), plus the steal, the
- * reach, and the best pick by actual points. Grades never change — they're
- * frozen draft-night takes to argue about all season.
+ * Draft report card, re-graded live. Every houseguest is ranked by their
+ * projected end-of-season fantasy points from the Monte-Carlo sim — which
+ * blends Kalshi win odds, comp form (scouting + observed wins), and points
+ * already banked — and each pick is scored by how far below that ranking
+ * it was made. Grades move as the season does; that's the fun.
  */
 
 interface GradedPick {
   pick: DraftPick;
   hg: Houseguest;
   team: Team;
-  rank: number | null;
-  /** overall − scouted rank; positive = got them later than projected. */
-  value: number | null;
+  /** Where the houseguest ranks today by projected season points. */
+  rank: number;
+  /** overall − rank; positive = they're outplaying their draft slot. */
+  value: number;
 }
 
 function gradeFor(value: number): { letter: string; cls: string } {
@@ -39,63 +41,79 @@ export function DraftReport() {
   const totalSlots = state.teams.length * state.picksPerTeam;
   if (totalSlots === 0 || state.picks.length < totalSlots) return null;
 
+  // True value today: projected season points when the sim can run, actual
+  // points once the season is decided and there's nothing left to project.
+  const sim = simulateSeasonCached(state);
+  const actual = new Map(
+    computeHouseguestScores(state).map((s) => [s.houseguest.id, s.points]),
+  );
+  const worth = (hgId: string): number =>
+    sim ? sim.hgExpected[hgId] ?? 0 : actual.get(hgId) ?? 0;
+
+  const ranked = [...state.houseguests].sort(
+    (a, b) => worth(b.id) - worth(a.id) || a.name.localeCompare(b.name),
+  );
+  const trueRank = new Map(ranked.map((h, i) => [h.id, i + 1]));
+
   const hgById = new Map(state.houseguests.map((h) => [h.id, h]));
   const rows: GradedPick[] = [];
   for (const pick of state.picks) {
     const hg = hgById.get(pick.houseguestId);
     const team = state.teams.find((t) => t.id === pick.teamId);
     if (!hg || !team) continue;
-    const rank = scoutFor(hg.name)?.rank ?? null;
-    rows.push({
-      pick,
-      hg,
-      team,
-      rank,
-      value: rank === null ? null : pick.overall - rank,
-    });
+    const rank = trueRank.get(hg.id)!;
+    rows.push({ pick, hg, team, rank, value: pick.overall - rank });
   }
   if (rows.length === 0) return null;
 
-  const valued = rows.filter((r) => r.value !== null);
   let steal: GradedPick | null = null;
-  let reach: GradedPick | null = null;
-  for (const r of valued) {
-    if (r.value! > 0 && (!steal || r.value! > steal.value!)) steal = r;
-    if (r.value! < 0 && (!reach || r.value! < reach.value!)) reach = r;
+  let regret: GradedPick | null = null;
+  for (const r of rows) {
+    if (r.value > 0 && (!steal || r.value > steal.value)) steal = r;
+    if (r.value < 0 && (!regret || r.value < regret.value)) regret = r;
   }
-
-  const points = new Map(
-    computeHouseguestScores(state).map((s) => [s.houseguest.id, s.points]),
-  );
   let bestPick: GradedPick | null = null;
   for (const r of rows) {
-    const pts = points.get(r.hg.id) ?? 0;
-    if (pts > 0 && (!bestPick || pts > (points.get(bestPick.hg.id) ?? 0))) {
+    const pts = actual.get(r.hg.id) ?? 0;
+    if (pts > 0 && (!bestPick || pts > (actual.get(bestPick.hg.id) ?? 0))) {
       bestPick = r;
     }
   }
+  // A high-value houseguest nobody drafted is its own kind of draft grade.
+  const drafted = new Set(state.picks.map((p) => p.houseguestId));
+  const benched = ranked.find(
+    (h) => !drafted.has(h.id) && trueRank.get(h.id)! <= 8,
+  );
 
   const teamValue = state.teams.map((team) => ({
     team,
-    value: valued
+    value: rows
       .filter((r) => r.team.id === team.id)
-      .reduce((sum, r) => sum + r.value!, 0),
+      .reduce((sum, r) => sum + r.value, 0),
   }));
+
+  const projected = (hgId: string): string =>
+    sim ? `, projected ${sim.hgExpected[hgId] ?? 0} pts` : "";
 
   const lines: string[] = [];
   if (steal) {
     lines.push(
-      `💎 Steal of the draft: ${displayName(steal.hg.name)} to ${steal.team.name} at pick ${steal.pick.overall} — scouted #${steal.rank}.`,
+      `💎 Steal of the draft: ${displayName(steal.hg.name)} to ${steal.team.name} at pick ${steal.pick.overall} — worth #${steal.rank} today${projected(steal.hg.id)}.`,
     );
   }
-  if (reach) {
+  if (regret) {
     lines.push(
-      `😬 Biggest gamble: ${displayName(reach.hg.name)} to ${reach.team.name} at pick ${reach.pick.overall} — scouted #${reach.rank}.`,
+      `😬 Toughest break: ${displayName(regret.hg.name)} (${regret.team.name}, pick ${regret.pick.overall}) — worth #${regret.rank} today${projected(regret.hg.id)}.`,
     );
   }
   if (bestPick) {
     lines.push(
-      `🏆 Best pick so far: ${displayName(bestPick.hg.name)} (${bestPick.team.name}, pick ${bestPick.pick.overall}) — ${points.get(bestPick.hg.id)} pts.`,
+      `🏆 Best pick so far: ${displayName(bestPick.hg.name)} (${bestPick.team.name}, pick ${bestPick.pick.overall}) — ${actual.get(bestPick.hg.id)} pts banked.`,
+    );
+  }
+  if (benched) {
+    lines.push(
+      `🛋️ Still on the board: ${displayName(benched.name)} — worth #${trueRank.get(benched.id)} today${projected(benched.id)}.`,
     );
   }
 
@@ -103,7 +121,7 @@ export function DraftReport() {
     <Card>
       <SectionTitle
         title="Draft report card"
-        subtitle="Graded against the pre-season scouting ranks — locked in on draft night."
+        subtitle="Re-graded live from Kalshi odds, comp form, and points banked — how each pick looks today, not on draft night."
       />
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
         {teamValue.map(({ team, value }) => {
@@ -120,7 +138,7 @@ export function DraftReport() {
               </p>
               <p
                 className="text-[10px] text-[var(--muted)] font-mono tabular-nums"
-                title="Sum over picks of (pick number − scouted rank); positive means value fell to them"
+                title="Sum over picks of (pick number − current worth); positive means the roster is outplaying its draft slots"
               >
                 value {value >= 0 ? `+${value}` : value}
               </p>

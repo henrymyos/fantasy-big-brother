@@ -1,4 +1,4 @@
-import { computeStandings } from "./scoring";
+import { computeHouseguestScores } from "./scoring";
 import { scoutFor } from "./scouting";
 import { oddsFor } from "./odds";
 import type { LeagueState } from "./types";
@@ -11,8 +11,10 @@ import type { LeagueState } from "./types";
  * houseguest is evicted weighted inversely by Kalshi win odds, and points
  * are awarded per the league's own scoring rules (survive/jury/F3/finale).
  * Starting from current visible points, the share of simulations each team
- * wins is its chance. Seeded RNG → same inputs, same number on every
- * device, and only gate-visible data goes in, so nothing here can spoil.
+ * wins is its chance, and each houseguest's average final total is their
+ * projected season score (the "true value" behind the draft report card).
+ * Seeded RNG → same inputs, same number on every device, and only
+ * gate-visible data goes in, so nothing here can spoil.
  */
 
 const SIMS = 2000;
@@ -43,9 +45,14 @@ function weightedPick<T>(
   return items[items.length - 1];
 }
 
-export function leagueWinOdds(
-  state: LeagueState,
-): Record<string, number> | null {
+export interface SimResult {
+  /** Chance each team wins the league, in whole percent. */
+  teamPct: Record<string, number>;
+  /** Projected end-of-season fantasy points per houseguest. */
+  hgExpected: Record<string, number>;
+}
+
+export function simulateSeason(state: LeagueState): SimResult | null {
   if (state.picks.length === 0 || state.teams.length === 0) return null;
   if (state.houseguests.some((h) => h.status === "winner")) return null; // season decided
 
@@ -62,7 +69,6 @@ export function leagueWinOdds(
     afp: rulePts("r-afp", 10),
   };
 
-  const teamOf = new Map(state.picks.map((p) => [p.houseguestId, p.teamId]));
   const oddsList = state.odds?.list ?? [];
 
   // Per-houseguest model inputs.
@@ -93,8 +99,9 @@ export function leagueWinOdds(
     });
   if (field.length < 4) return null; // endgame — too little left to simulate
 
-  const basePoints = new Map(
-    computeStandings(state).map((s) => [s.team.id, s.points]),
+  // Per-houseguest baselines; team totals are just the sum of their picks.
+  const baseHgPoints = new Map(
+    computeHouseguestScores(state).map((s) => [s.houseguest.id, s.points]),
   );
   const startedAboveJury = field.length > MAKES_JURY;
   const startedAboveF3 = field.length > 3;
@@ -108,13 +115,14 @@ export function leagueWinOdds(
 
   const rnd = mulberry32(seed);
   const wins = new Map<string, number>(state.teams.map((t) => [t.id, 0]));
+  const expectedSum = new Map<string, number>(
+    state.houseguests.map((h) => [h.id, 0]),
+  );
 
   for (let s = 0; s < SIMS; s++) {
-    const pts = new Map(basePoints);
-    const add = (hgId: string, amount: number) => {
-      const teamId = teamOf.get(hgId);
-      if (teamId) pts.set(teamId, (pts.get(teamId) ?? 0) + amount);
-    };
+    const pts = new Map(baseHgPoints);
+    const add = (hgId: string, amount: number) =>
+      pts.set(hgId, (pts.get(hgId) ?? 0) + amount);
     let active = [...field];
 
     while (active.length > 3) {
@@ -140,28 +148,44 @@ export function leagueWinOdds(
     add(runner.id, PTS.runnerup);
     add(weightedPick(field, (x) => x.stay, rnd).id, PTS.afp);
 
-    // Credit the winning team(s); ties split the win.
+    // Roll houseguest totals up into teams and credit the winner(s).
+    const teamPts = new Map<string, number>(
+      state.teams.map((t) => [t.id, 0]),
+    );
+    for (const p of state.picks) {
+      teamPts.set(
+        p.teamId,
+        (teamPts.get(p.teamId) ?? 0) + (pts.get(p.houseguestId) ?? 0),
+      );
+    }
     let best = -Infinity;
-    for (const v of pts.values()) best = Math.max(best, v);
-    const leaders = state.teams.filter((t) => (pts.get(t.id) ?? 0) === best);
+    for (const v of teamPts.values()) best = Math.max(best, v);
+    const leaders = state.teams.filter(
+      (t) => (teamPts.get(t.id) ?? 0) === best,
+    );
     for (const t of leaders) {
       wins.set(t.id, (wins.get(t.id) ?? 0) + 1 / leaders.length);
     }
+    for (const [id, v] of pts) {
+      expectedSum.set(id, (expectedSum.get(id) ?? 0) + v);
+    }
   }
 
-  const out: Record<string, number> = {};
+  const teamPct: Record<string, number> = {};
   for (const t of state.teams) {
-    out[t.id] = Math.round(((wins.get(t.id) ?? 0) / SIMS) * 100);
+    teamPct[t.id] = Math.round(((wins.get(t.id) ?? 0) / SIMS) * 100);
   }
-  return out;
+  const hgExpected: Record<string, number> = {};
+  for (const h of state.houseguests) {
+    hgExpected[h.id] = Math.round((expectedSum.get(h.id) ?? 0) / SIMS);
+  }
+  return { teamPct, hgExpected };
 }
 
 // Render-friendly cache: the store's view object is referentially stable
 // between state changes, so one simulation per distinct state.
-const simCache = new WeakMap<LeagueState, Record<string, number> | null>();
-export function leagueWinOddsCached(
-  state: LeagueState,
-): Record<string, number> | null {
-  if (!simCache.has(state)) simCache.set(state, leagueWinOdds(state));
+const simCache = new WeakMap<LeagueState, SimResult | null>();
+export function simulateSeasonCached(state: LeagueState): SimResult | null {
+  if (!simCache.has(state)) simCache.set(state, simulateSeason(state));
   return simCache.get(state) ?? null;
 }

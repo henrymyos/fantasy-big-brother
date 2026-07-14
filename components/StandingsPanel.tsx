@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useStore } from "@/lib/store";
 import { computeStandings, standingsByWeek } from "@/lib/scoring";
-import { leagueWinOddsCached } from "@/lib/simulate";
+import { simulateSeasonCached } from "@/lib/simulate";
 import { displayName } from "@/lib/wiki";
 import { CatchUpDigest } from "./CatchUpDigest";
 import { DraftReport } from "./DraftReport";
@@ -25,7 +25,7 @@ export function StandingsPanel() {
   const leader = standings[0];
   const champ = state.houseguests.find((h) => h.status === "winner");
 
-  const winSim = leagueWinOddsCached(state);
+  const winSim = simulateSeasonCached(state);
   const anyDrafted = state.picks.length > 0;
   const anyScored = anyDrafted && state.events.length > 0;
   const weekly = anyScored ? standingsByWeek(state) : null;
@@ -91,7 +91,7 @@ export function StandingsPanel() {
                       className="text-[10px] font-semibold text-accent mt-0.5"
                       title="Chance to win the league — simulated from current points, Kalshi odds, and comp-win projections"
                     >
-                      {winSim[s.team.id] ?? 0}% to win
+                      {winSim.teamPct[s.team.id] ?? 0}% to win
                     </p>
                   )}
                 </div>
