@@ -76,6 +76,22 @@ export function nextRevealAfter(g: Gate | null): UpcomingReveal | null {
   return null;
 }
 
+/**
+ * When the episode behind a gate aired: the schedule entry matching the
+ * gate exactly, else the latest one at or before it (a manual gate can sit
+ * on stage 0 or past the season's end). Null before any episode airs.
+ */
+export function airTimeForGate(g: Gate | null): number | null {
+  if (!g) return null;
+  const k = gateKey(g);
+  let found: number | null = null;
+  for (const r of REVEALS) {
+    if (r.gate.week * 10 + r.gate.stage <= k) found = r.t - DAY;
+    else break;
+  }
+  return found;
+}
+
 /** The furthest gate whose reveal moment (air + 1 day) has passed. */
 export function autoGate(now: number): Gate | null {
   let gate: Gate | null = null;

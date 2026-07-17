@@ -56,7 +56,7 @@ export function WinnerOdds() {
     <Card>
       <SectionTitle
         title="Win odds"
-        subtitle={`Kalshi's market, frozen when the last episode's results unlocked (${asOf}) — no hints about what's next.`}
+        subtitle={`Kalshi's market as the last-revealed episode aired (${asOf}) — no hints about what's next.`}
       />
       <div className="space-y-1.5">
         {rows.map(({ hg, pct, delta }) => {
