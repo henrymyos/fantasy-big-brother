@@ -37,11 +37,15 @@ function buildSchedule(): { t: number; gate: Gate }[] {
 
 const REVEALS = buildSchedule();
 
-/** How late in a week's episodes each synced result airs. */
+/**
+ * How late in a week's episodes each synced result airs. Only HOH (Sunday)
+ * and veto (Wednesday) have a predictable episode; any other comp — twist
+ * comps, safety comps — can air in the Thursday live show, so those hold
+ * for the full-week reveal rather than risk leaking a day early.
+ */
 const EVENT_STAGE: Record<string, number> = {
   "r-hoh": 1,
   "r-pov": 2,
-  "r-comp": 2,
 };
 export const eventStage = (ruleId: string): number =>
   EVENT_STAGE[ruleId] ?? 3;
@@ -49,8 +53,8 @@ export const eventStage = (ruleId: string): number =>
 /** What each gate stage unlocks, for user-facing copy. */
 export const STAGE_LABEL: Record<number, string> = {
   1: "HOH results",
-  2: "veto & comp results",
-  3: "eviction results",
+  2: "veto results",
+  3: "eviction & comp results",
 };
 
 export interface UpcomingReveal {

@@ -50,8 +50,8 @@ function RuleRow({
 const GATE_STAGES = [
   { value: 0, label: "Nothing from this week yet" },
   { value: 1, label: "HOH winner revealed" },
-  { value: 2, label: "Veto & other comps revealed" },
-  { value: 3, label: "Whole week — eviction included" },
+  { value: 2, label: "Veto winner revealed" },
+  { value: 3, label: "Whole week — other comps & eviction included" },
 ];
 
 export function ScoringSettings({ onClose }: { onClose: () => void }) {
