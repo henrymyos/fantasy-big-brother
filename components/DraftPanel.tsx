@@ -211,31 +211,33 @@ export function DraftPanel() {
               </>
             )}
           </div>
-          <div className="flex gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={shuffleDraftOrder}
-              disabled={state.picks.length > 0}
-              title={
-                state.picks.length > 0
-                  ? "Order locks once drafting starts — Reset draft first"
-                  : "Randomize who picks first"
-              }
-            >
-              🎲 Shuffle order
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                if (confirm("Clear all draft picks?")) resetDraft();
-              }}
-              disabled={state.picks.length === 0}
-            >
-              Reset draft
-            </Button>
-          </div>
+          {!clock.complete && (
+            <div className="flex gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={shuffleDraftOrder}
+                disabled={state.picks.length > 0}
+                title={
+                  state.picks.length > 0
+                    ? "Order locks once drafting starts — Reset draft first"
+                    : "Randomize who picks first"
+                }
+              >
+                🎲 Shuffle order
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  if (confirm("Clear all draft picks?")) resetDraft();
+                }}
+                disabled={state.picks.length === 0}
+              >
+                Reset draft
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Board grid */}

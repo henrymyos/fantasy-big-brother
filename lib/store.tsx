@@ -571,7 +571,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         return { ...s, picks: [...s.picks, pick] };
       });
 
-    const resetDraft = () => setState((s) => ({ ...s, picks: [] }));
+    // A finalized draft is permanent — reset only works mid-draft.
+    const resetDraft = () =>
+      setState((s) =>
+        s.picks.length >= s.teams.length * s.picksPerTeam
+          ? s
+          : { ...s, picks: [] },
+      );
 
     const shuffleDraftOrder = () =>
       setState((s) => {
