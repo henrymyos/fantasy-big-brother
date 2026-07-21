@@ -20,10 +20,16 @@ const MILESTONE_META: Record<string, { emoji: string; label: string }> = {
   "r-afp": { emoji: "💛", label: "America's Favorite" },
 };
 
+/** A name tinted in its drafting team's color (null = undrafted). */
+interface NameChunk {
+  text: string;
+  color: string | null;
+}
+
 interface WeekLine {
   emoji: string;
   label: string;
-  detail: string;
+  detail: NameChunk[];
 }
 
 function buildWeek(state: LeagueState, week: number) {
@@ -37,32 +43,33 @@ function buildWeek(state: LeagueState, week: number) {
   const rules = new Map(state.rules.map((r) => [r.id, r]));
   const evs = state.events.filter((e) => e.week === week);
 
-  const withTeam = (hgId: string): string | null => {
+  const chunkFor = (hgId: string): NameChunk | null => {
     const hg = hgById.get(hgId);
     if (!hg) return null;
-    const team = teamByHg.get(hgId);
-    return team
-      ? `${displayName(hg.name)} (${team.name})`
-      : displayName(hg.name);
+    return {
+      text: displayName(hg.name),
+      color: teamByHg.get(hgId)?.color ?? null,
+    };
   };
-  const namesFor = (ruleId: string): string[] => [
-    ...new Set(
-      evs
-        .filter((e) => e.ruleId === ruleId)
-        .map((e) => withTeam(e.houseguestId))
-        .filter((n): n is string => Boolean(n)),
-    ),
-  ];
+  const namesFor = (ruleId: string): NameChunk[] => {
+    const seen = new Set<string>();
+    const out: NameChunk[] = [];
+    for (const e of evs) {
+      if (e.ruleId !== ruleId || seen.has(e.houseguestId)) continue;
+      seen.add(e.houseguestId);
+      const chunk = chunkFor(e.houseguestId);
+      if (chunk) out.push(chunk);
+    }
+    return out;
+  };
 
   const lines: WeekLine[] = [];
   const hoh = namesFor("r-hoh");
-  if (hoh.length) lines.push({ emoji: "👑", label: "HOH", detail: hoh.join(", ") });
+  if (hoh.length) lines.push({ emoji: "👑", label: "HOH", detail: hoh });
   const veto = namesFor("r-pov");
-  if (veto.length)
-    lines.push({ emoji: "🛡️", label: "Veto", detail: veto.join(", ") });
+  if (veto.length) lines.push({ emoji: "🛡️", label: "Veto", detail: veto });
   const comps = namesFor("r-comp");
-  if (comps.length)
-    lines.push({ emoji: "🎯", label: "Comps", detail: comps.join(", ") });
+  if (comps.length) lines.push({ emoji: "🎯", label: "Comps", detail: comps });
 
   const evicted = state.houseguests.filter(
     (h) =>
@@ -73,8 +80,8 @@ function buildWeek(state: LeagueState, week: number) {
       emoji: "🚪",
       label: "Evicted",
       detail: evicted
-        .map((h) => withTeam(h.id) ?? displayName(h.name))
-        .join(", "),
+        .map((h) => chunkFor(h.id))
+        .filter((c): c is NameChunk => Boolean(c)),
     });
 
   for (const [ruleId, meta] of Object.entries(MILESTONE_META)) {
@@ -84,7 +91,10 @@ function buildWeek(state: LeagueState, week: number) {
       emoji: meta.emoji,
       label: meta.label,
       // The jury line would be 11 names long — a count reads better.
-      detail: names.length > 3 ? `${names.length} houseguests` : names.join(", "),
+      detail:
+        names.length > 3
+          ? [{ text: `${names.length} houseguests`, color: null }]
+          : names,
     });
   }
 
@@ -93,7 +103,7 @@ function buildWeek(state: LeagueState, week: number) {
     lines.push({
       emoji: "🌱",
       label: "Survived",
-      detail: `${survived} houseguests`,
+      detail: [{ text: `${survived} houseguests`, color: null }],
     });
 
   const teamRows = state.teams
@@ -153,7 +163,18 @@ export function WeeklyReview() {
                     <span className="shrink-0">{line.emoji}</span>
                     <span className="min-w-0">
                       <span className="text-[var(--muted)]">{line.label}:</span>{" "}
-                      <span className="font-medium">{line.detail}</span>
+                      {line.detail.map((chunk, i) => (
+                        <span key={i} className="font-semibold">
+                          <span
+                            style={
+                              chunk.color ? { color: chunk.color } : undefined
+                            }
+                          >
+                            {chunk.text}
+                          </span>
+                          {i < line.detail.length - 1 ? ", " : ""}
+                        </span>
+                      ))}
                     </span>
                   </li>
                 ))}
