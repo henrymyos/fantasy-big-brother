@@ -5,14 +5,13 @@ import { useStore } from "@/lib/store";
 import { computeStandings, standingsByWeek } from "@/lib/scoring";
 import { simulateSeasonCached } from "@/lib/simulate";
 import { displayName } from "@/lib/wiki";
-import { CatchUpDigest } from "./CatchUpDigest";
 import { DraftReport } from "./DraftReport";
 import { HouseguestCard } from "./HouseguestCard";
 import { LeagueChat } from "./LeagueChat";
 import { NextReveal } from "./NextReveal";
 import { SeasonStats } from "./SeasonStats";
 import { StandingsChart } from "./StandingsChart";
-import { WeeklyRecap } from "./WeeklyRecap";
+import { WeeklyReview } from "./WeeklyReview";
 import { WinnerOdds } from "./WinnerOdds";
 import { Avatar, Card, EmptyState, SectionTitle } from "./ui";
 
@@ -54,9 +53,6 @@ export function StandingsPanel() {
           </div>
         </Card>
       )}
-
-      <CatchUpDigest />
-      <NextReveal />
 
       <Card>
         <SectionTitle
@@ -138,6 +134,9 @@ export function StandingsPanel() {
         )}
       </Card>
 
+      <NextReveal />
+      <WeeklyReview />
+
       {weekly && (
         <Card>
           <SectionTitle
@@ -148,7 +147,6 @@ export function StandingsPanel() {
         </Card>
       )}
 
-      <WeeklyRecap />
       <SeasonStats />
       <DraftReport />
       <WinnerOdds />
