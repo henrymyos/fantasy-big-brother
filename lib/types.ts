@@ -63,6 +63,20 @@ export interface ScoreEvent {
   source?: "wiki";
 }
 
+/**
+ * One family member's eviction pick'em call. Append-only: the entry with
+ * the latest `at` per (week, teamId) is the effective pick, which makes
+ * concurrent edits from two devices merge cleanly.
+ */
+export interface EvictionPrediction {
+  id: string;
+  week: number;
+  teamId: string;
+  houseguestId: string;
+  /** Epoch ms when the pick was made. */
+  at: number;
+}
+
 /** One gate-locked capture of Kalshi's win-the-season market. */
 export interface OddsSnapshot {
   gateKey: number;
@@ -99,4 +113,6 @@ export interface LeagueState {
   picks: DraftPick[];
   rules: ScoringRule[];
   events: ScoreEvent[];
+  /** Eviction pick'em calls; locked by schedule, scored at each reveal. */
+  predictions?: EvictionPrediction[];
 }

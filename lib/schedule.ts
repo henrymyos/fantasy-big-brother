@@ -92,6 +92,17 @@ export function airTimeForGate(g: Gate | null): number | null {
   return found;
 }
 
+/**
+ * When week `week`'s live eviction episode starts airing — the pick'em
+ * lock moment. Null for weeks beyond the schedule.
+ */
+export function evictionAirTime(week: number): number | null {
+  for (const r of REVEALS) {
+    if (r.gate.week === week && r.gate.stage === 3) return r.t - DAY;
+  }
+  return null;
+}
+
 /** The furthest gate whose reveal moment (air + 1 day) has passed. */
 export function autoGate(now: number): Gate | null {
   let gate: Gate | null = null;

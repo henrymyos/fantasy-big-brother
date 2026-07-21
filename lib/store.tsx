@@ -11,7 +11,7 @@ import {
 import { defaultState, defaultTeams, TEAM_COLORS } from "./defaults";
 import { fetchHouseguestPhoto } from "./photos";
 import { snakeOrder, teamOnTheClock } from "./scoring";
-import { autoGate, eventStage, maxGate } from "./schedule";
+import { autoGate, eventStage, evictionAirTime, maxGate } from "./schedule";
 import { applyWikiSeason } from "./sync";
 import { fetchSeason } from "./wiki";
 import {
@@ -89,8 +89,24 @@ function mergeStates(server: LeagueState, local: LeagueState): LeagueState {
   const events =
     extraEvents.length > 0 ? [...server.events, ...extraEvents] : server.events;
 
-  if (picks === server.picks && events === server.events) return server;
-  return { ...server, picks, events };
+  // Pick'em calls are append-only (latest `at` wins per week+team), so a
+  // plain union by id resolves concurrent picks correctly.
+  const serverPreds = server.predictions ?? [];
+  const predIds = new Set(serverPreds.map((p) => p.id));
+  const extraPreds = (local.predictions ?? []).filter(
+    (p) => !predIds.has(p.id),
+  );
+  const predictions =
+    extraPreds.length > 0 ? [...serverPreds, ...extraPreds] : serverPreds;
+
+  if (
+    picks === server.picks &&
+    events === server.events &&
+    extraPreds.length === 0
+  ) {
+    return server;
+  }
+  return { ...server, picks, events, predictions };
 }
 
 
@@ -128,6 +144,8 @@ interface StoreValue {
   // events
   addEvent: (event: Omit<ScoreEvent, "id">) => void;
   removeEvent: (id: string) => void;
+  // eviction pick'em
+  setEvictionPick: (week: number, teamId: string, houseguestId: string) => void;
   // sync
   supabaseEnabled: boolean;
   syncStatus: SyncStatus;
@@ -152,6 +170,7 @@ function migrate(parsed: Partial<LeagueState>): LeagueState {
     hidden: parsed.hidden ?? [],
     revealed: parsed.revealed ?? null,
     odds: parsed.odds ?? null,
+    predictions: parsed.predictions ?? [],
   };
 }
 
@@ -621,6 +640,27 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         events: s.events.filter((e) => e.id !== id),
       }));
 
+    const setEvictionPick = (
+      week: number,
+      teamId: string,
+      houseguestId: string,
+    ) =>
+      setState((s) => {
+        // Locked once the live eviction episode starts airing — no
+        // after-the-fact calls, even from a stale tab.
+        const lockAt = evictionAirTime(week);
+        if (lockAt !== null && Date.now() >= lockAt) return s;
+        if (!s.teams.some((t) => t.id === teamId)) return s;
+        if (!s.houseguests.some((h) => h.id === houseguestId)) return s;
+        return {
+          ...s,
+          predictions: [
+            ...(s.predictions ?? []),
+            { id: uid("ep"), week, teamId, houseguestId, at: Date.now() },
+          ],
+        };
+      });
+
     const resetAll = () => setState(defaultState());
 
     const hid = new Set(state.hidden);
@@ -646,6 +686,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       removeRule,
       addEvent,
       removeEvent,
+      setEvictionPick,
       supabaseEnabled: isSupabaseConfigured,
       syncStatus,
       wikiSyncedAt,

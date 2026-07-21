@@ -6,6 +6,7 @@ import { computeStandings, standingsByWeek } from "@/lib/scoring";
 import { simulateSeasonCached } from "@/lib/simulate";
 import { displayName } from "@/lib/wiki";
 import { DraftReport } from "./DraftReport";
+import { EvictionPickem } from "./EvictionPickem";
 import { HouseguestCard } from "./HouseguestCard";
 import { LeagueChat } from "./LeagueChat";
 import { NextReveal } from "./NextReveal";
@@ -135,6 +136,7 @@ export function StandingsPanel() {
       </Card>
 
       <NextReveal />
+      <EvictionPickem />
       <WeeklyReview />
 
       {weekly && (
