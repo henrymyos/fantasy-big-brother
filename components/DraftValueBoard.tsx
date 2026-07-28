@@ -97,7 +97,7 @@ export function DraftValueBoard() {
           key={`${round}-${team.id}`}
           type="button"
           onClick={() => setOpenHg(hg.id)}
-          title={`${displayName(hg.name)} — pick ${pick.overall}, worth #${rank} today (${value >= 0 ? "+" : ""}${value})`}
+          title={`${displayName(hg.name)} — pick ${pick.overall}, projected ${worth(hg.id)} season pts (#${rank} of ${state.houseguests.length}) → ${value >= 0 ? "+" : ""}${value}`}
           className="relative flex flex-col px-1.5 pt-1.5 pb-2 min-h-[88px] rounded-lg transition cursor-pointer hover:ring-2 hover:ring-white/30 hover:brightness-110"
           style={{ background: valueShade(value) }}
         >
@@ -124,10 +124,13 @@ export function DraftValueBoard() {
               name={hg.name}
               src={hg.photoUrl}
               active={!out}
-              size={52}
+              size={44}
               className="ring-2 ring-black/20"
             />
           </div>
+          <p className="w-full text-center text-[10px] font-mono tabular-nums opacity-70 leading-tight pt-0.5">
+            proj {worth(hg.id)} pts
+          </p>
         </button>,
       );
     });
@@ -137,7 +140,7 @@ export function DraftValueBoard() {
     <Card>
       <SectionTitle
         title="Draft board, in hindsight"
-        subtitle="Same board, re-shaded by how each pick looks today — deeper green the bigger the steal, deeper red the bigger the reach."
+        subtitle="Same board, re-shaded by projected end-of-season points — the sim's forecast of each houseguest's final total, not just points banked so far. Deeper green = bigger steal, deeper red = bigger reach."
       />
       <div
         style={{
