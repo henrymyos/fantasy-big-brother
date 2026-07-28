@@ -28,6 +28,10 @@ export function StandingsPanel() {
   const champ = state.houseguests.find((h) => h.status === "winner");
 
   const winSim = simulateSeasonCached(state);
+  // Projected season total per houseguest; once the season is decided the
+  // sim retires and banked points are the projection.
+  const projFor = (hgId: string, banked: number): number =>
+    winSim ? winSim.hgExpected[hgId] ?? 0 : banked;
   const anyDrafted = state.picks.length > 0;
   const anyScored = anyDrafted && state.events.length > 0;
   const weekly = anyScored ? standingsByWeek(state) : null;
@@ -84,7 +88,16 @@ export function StandingsPanel() {
                   <p className="text-lg font-bold font-mono tabular-nums leading-tight">
                     {s.points}
                   </p>
-                  <p className="text-[9px] text-[var(--muted)]">pts</p>
+                  <p
+                    className="text-[9px] text-[var(--muted)]"
+                    title="Points now · projected season total for the whole roster"
+                  >
+                    pts · proj{" "}
+                    {s.houseguests.reduce(
+                      (sum, hs) => sum + projFor(hs.houseguest.id, hs.points),
+                      0,
+                    )}
+                  </p>
                   {winSim && (
                     <p
                       className="text-[10px] font-semibold text-accent mt-0.5"
@@ -117,8 +130,15 @@ export function StandingsPanel() {
                           >
                             {displayName(hs.houseguest.name)}
                           </span>
-                          <span className="text-[10px] font-mono tabular-nums text-[var(--muted)] shrink-0">
+                          <span
+                            className="text-[10px] font-mono tabular-nums shrink-0"
+                            title={`${hs.points} pts now, projected ${projFor(hs.houseguest.id, hs.points)} by season's end`}
+                          >
                             {hs.points}
+                            <span className="text-[var(--muted)]">
+                              {" "}
+                              · {projFor(hs.houseguest.id, hs.points)}
+                            </span>
                           </span>
                         </button>
                       </li>
