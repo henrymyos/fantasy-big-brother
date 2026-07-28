@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useStore } from "@/lib/store";
+import { CastList } from "./CastList";
 import { computeStandings, standingsByWeek } from "@/lib/scoring";
 import { simulateSeasonCached } from "@/lib/simulate";
 import { displayName } from "@/lib/wiki";
@@ -151,6 +152,7 @@ export function StandingsPanel() {
       )}
 
       <SeasonStats />
+      <CastList />
       <DraftReport />
       <WinnerOdds />
       <DraftValueBoard />
