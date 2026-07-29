@@ -72,11 +72,6 @@ function buildWeek(state: LeagueState, week: number) {
   if (comps.length) lines.push({ emoji: "🎯", label: "Comps", detail: comps });
   const power = namesFor("r-power");
   if (power.length) lines.push({ emoji: "⚡", label: "Power", detail: power });
-  const saved = namesFor("r-veto-saved");
-  if (saved.length) lines.push({ emoji: "🛟", label: "Saved", detail: saved });
-  const beatBlock = namesFor("r-survive-block");
-  if (beatBlock.length)
-    lines.push({ emoji: "🧱", label: "Beat the block", detail: beatBlock });
 
   const evicted = state.houseguests.filter(
     (h) =>
