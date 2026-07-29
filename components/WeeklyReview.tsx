@@ -181,7 +181,7 @@ export function WeeklyReview() {
                   </li>
                 ))}
               </ul>
-              <div className="mt-2.5 pt-2 border-t border-[var(--border)] space-y-1">
+              <div className="mt-3.5 pt-2.5 border-t border-[var(--border)] space-y-1">
                 {teamRows.map(({ team, pts }) => (
                   <div key={team.id} className="flex items-center gap-1.5 text-xs">
                     <span

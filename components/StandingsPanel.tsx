@@ -7,11 +7,9 @@ import { computeStandings, standingsByWeek } from "@/lib/scoring";
 import { simulateSeasonCached } from "@/lib/simulate";
 import { displayName } from "@/lib/wiki";
 import { DraftReport } from "./DraftReport";
-import { DraftValueBoard } from "./DraftValueBoard";
 import { EvictionPickem } from "./EvictionPickem";
 import { HouseguestCard } from "./HouseguestCard";
 import { LeagueChat } from "./LeagueChat";
-import { NextReveal } from "./NextReveal";
 import { SeasonStats } from "./SeasonStats";
 import { StandingsChart } from "./StandingsChart";
 import { WeeklyReview } from "./WeeklyReview";
@@ -23,6 +21,7 @@ const MEDALS = ["🥇", "🥈", "🥉", "💩"];
 export function StandingsPanel() {
   const { state } = useStore();
   const [openHg, setOpenHg] = useState<string | null>(null);
+  const [deepDive, setDeepDive] = useState(false);
   const standings = computeStandings(state);
   const leader = standings[0];
   const champ = state.houseguests.find((h) => h.status === "winner");
@@ -157,25 +156,41 @@ export function StandingsPanel() {
         )}
       </Card>
 
-      <NextReveal />
       <EvictionPickem />
       <WeeklyReview />
 
-      {weekly && (
-        <Card>
-          <SectionTitle
-            title="The race"
-            subtitle="Cumulative team points, week by week."
-          />
-          <StandingsChart data={weekly} />
-        </Card>
-      )}
+      {/* The occasional-reading half of the page, tucked behind a toggle so
+          the daily check-in stays short. Kept mounted while hidden so the
+          odds card's refresh ping still runs. */}
+      <button
+        type="button"
+        onClick={() => setDeepDive((v) => !v)}
+        className="w-full flex items-center gap-3 py-1 text-sm font-semibold text-[var(--muted)] hover:text-foreground transition cursor-pointer"
+        aria-expanded={deepDive}
+      >
+        <span className="flex-1 h-px bg-[var(--border)]" aria-hidden />
+        📊 Season deep dive
+        <span className="text-xs" aria-hidden>
+          {deepDive ? "▲" : "▼"}
+        </span>
+        <span className="flex-1 h-px bg-[var(--border)]" aria-hidden />
+      </button>
 
-      <SeasonStats />
-      <CastList />
-      <DraftReport />
-      <WinnerOdds />
-      <DraftValueBoard />
+      <div className={deepDive ? "space-y-5" : "hidden"}>
+        {weekly && (
+          <Card>
+            <SectionTitle
+              title="The race"
+              subtitle="Cumulative team points, week by week."
+            />
+            <StandingsChart data={weekly} />
+          </Card>
+        )}
+        <SeasonStats />
+        <CastList />
+        <DraftReport />
+        <WinnerOdds />
+      </div>
       </div>
 
       <LeagueChat />

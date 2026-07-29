@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useStore } from "@/lib/store";
 import { oddsFor, pingOddsRefresh } from "@/lib/odds";
 import { gateKey } from "@/lib/schedule";
@@ -11,8 +11,11 @@ import { Avatar, Card, SectionTitle } from "./ui";
  * Kalshi win-the-season odds — a snapshot taken when the spoiler gate last
  * advanced, so the numbers can't hint at anything the family hasn't seen.
  */
+const TOP_N = 6;
+
 export function WinnerOdds() {
   const { state } = useStore();
+  const [showAll, setShowAll] = useState(false);
   const snapshot = state.odds ?? null;
 
   // If the snapshot is missing or behind the current gate, ask the server
@@ -59,7 +62,7 @@ export function WinnerOdds() {
         subtitle={`Kalshi's market as the last-revealed episode aired (${asOf}) — no hints about what's next.`}
       />
       <div className="space-y-1.5">
-        {rows.map(({ hg, pct, delta }) => {
+        {(showAll ? rows : rows.slice(0, TOP_N)).map(({ hg, pct, delta }) => {
           const team = teamByHg.get(hg.id);
           const out = hg.status === "evicted";
           return (
@@ -102,6 +105,15 @@ export function WinnerOdds() {
           );
         })}
       </div>
+      {rows.length > TOP_N && (
+        <button
+          type="button"
+          onClick={() => setShowAll((v) => !v)}
+          className="mt-2.5 text-xs font-semibold text-[var(--muted)] hover:text-foreground transition cursor-pointer"
+        >
+          {showAll ? `Show top ${TOP_N}` : `Show all ${rows.length} ▾`}
+        </button>
+      )}
     </Card>
   );
 }

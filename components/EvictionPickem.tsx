@@ -2,7 +2,12 @@
 
 import { useSyncExternalStore } from "react";
 import { useStore } from "@/lib/store";
-import { evictionAirTime, gateKey } from "@/lib/schedule";
+import {
+  evictionAirTime,
+  gateKey,
+  nextRevealAfter,
+  STAGE_LABEL,
+} from "@/lib/schedule";
 import { displayName } from "@/lib/wiki";
 import type { EvictionPrediction } from "@/lib/types";
 import { Card, SectionTitle } from "./ui";
@@ -93,6 +98,16 @@ export function EvictionPickem() {
 
   const fmt = (t: number) =>
     new Date(t).toLocaleString([], { weekday: "short", hour: "numeric" });
+  const fmtLong = (t: number) =>
+    new Date(t).toLocaleString([], {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+    });
+  // "When does the site update next?" — lives here since it's the same
+  // rhythm the pick'em runs on.
+  const next = nextRevealAfter(gate);
 
   return (
     <Card>
@@ -117,6 +132,24 @@ export function EvictionPickem() {
           ) : undefined
         }
       />
+
+      {next && (
+        <div className="flex items-center gap-2.5 text-sm mb-3">
+          <span className="text-base shrink-0" aria-hidden>
+            ⏳
+          </span>
+          <span className="min-w-0">
+            <span className="font-semibold">
+              Week {next.gate.week} {STAGE_LABEL[next.gate.stage]}
+            </span>
+            <span className="text-[var(--muted)]">
+              {" "}
+              — airs {fmtLong(next.airsAt)}, unlocks here{" "}
+              {fmtLong(next.revealsAt)}
+            </span>
+          </span>
+        </div>
+      )}
 
       {showPicker && (
         <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/60 p-3.5">

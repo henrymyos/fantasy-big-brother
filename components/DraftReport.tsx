@@ -1,18 +1,21 @@
 "use client";
 
+import { useState } from "react";
 import { useStore } from "@/lib/store";
 import { computeHouseguestScores } from "@/lib/scoring";
 import { simulateSeasonCached } from "@/lib/simulate";
 import { displayName } from "@/lib/wiki";
 import type { DraftPick, Houseguest, Team } from "@/lib/types";
-import { Card, SectionTitle } from "./ui";
+import { HouseguestCard } from "./HouseguestCard";
+import { Avatar, Card, SectionTitle } from "./ui";
 
 /**
- * Draft report card, re-graded live. Every houseguest is ranked by their
- * projected end-of-season fantasy points from the Monte-Carlo sim — which
- * blends Kalshi win odds, comp form (scouting + observed wins), and points
- * already banked — and each pick is scored by how far below that ranking
- * it was made. Grades move as the season does; that's the fun.
+ * Draft report card, re-graded live: the draft-night board replayed with
+ * hindsight. Every houseguest is ranked by projected end-of-season fantasy
+ * points from the Monte-Carlo sim — Kalshi odds, comp form, points banked —
+ * and each pick is scored by draft slot minus that rank. Team letter grades
+ * head their board column, and every cell is shaded by its pick's value:
+ * deeper green the bigger the steal, deeper red the bigger the reach.
  */
 
 interface GradedPick {
@@ -36,8 +39,18 @@ function gradeFor(value: number): { letter: string; cls: string } {
   return { letter: "C", cls: "text-red-300" };
 }
 
+/** Green↔red shade over the dark surface; full strength at ±10 slots. */
+function valueShade(value: number): string {
+  const t = Math.min(Math.abs(value) / 10, 1);
+  if (value > 0) return `rgba(16, 185, 129, ${0.1 + 0.5 * t})`; // emerald-500
+  if (value < 0) return `rgba(239, 68, 68, ${0.1 + 0.5 * t})`; // red-500
+  return "var(--surface-2)";
+}
+
 export function DraftReport() {
   const { state } = useStore();
+  const [openHg, setOpenHg] = useState<string | null>(null);
+
   const totalSlots = state.teams.length * state.picksPerTeam;
   if (totalSlots === 0 || state.picks.length < totalSlots) return null;
 
@@ -85,15 +98,8 @@ export function DraftReport() {
     (h) => !drafted.has(h.id) && trueRank.get(h.id)! <= 8,
   );
 
-  const teamValue = state.teams.map((team) => ({
-    team,
-    value: rows
-      .filter((r) => r.team.id === team.id)
-      .reduce((sum, r) => sum + r.value, 0),
-  }));
-
   const projected = (hgId: string): string =>
-    sim ? `, projected ${sim.hgExpected[hgId] ?? 0} pts` : "";
+    sim ? `, proj ${sim.hgExpected[hgId] ?? 0} pts` : "";
 
   const lines: string[] = [];
   if (steal) {
@@ -117,41 +123,136 @@ export function DraftReport() {
     );
   }
 
+  const N = state.teams.length;
+  const cells: React.ReactNode[] = [];
+
+  // Header row: each team's letter grade tops its own board column.
+  state.teams.forEach((team) => {
+    const value = rows
+      .filter((r) => r.team.id === team.id)
+      .reduce((sum, r) => sum + r.value, 0);
+    const grade = gradeFor(value);
+    cells.push(
+      <div
+        key={`g-${team.id}`}
+        className="rounded-lg bg-[var(--surface-2)] px-1 py-2 text-center"
+        style={{ borderTop: `3px solid ${team.color}` }}
+        title="Sum over picks of (pick number − current worth); positive means the roster is outplaying its draft slots"
+      >
+        <p className="text-xs font-bold truncate">{team.name}</p>
+        <p className={`text-xl font-black leading-tight ${grade.cls}`}>
+          {grade.letter}
+        </p>
+        <p className="text-[10px] text-[var(--muted)] font-mono tabular-nums">
+          {value >= 0 ? `+${value}` : value}
+        </p>
+      </div>,
+    );
+  });
+
+  // Board rows: the snake draft, shaded by value.
+  const rowByPick = new Map(rows.map((r) => [r.pick.id, r]));
+  for (let round = 1; round <= state.picksPerTeam; round++) {
+    state.teams.forEach((team, i) => {
+      const posInRound = round % 2 === 1 ? i + 1 : N - i;
+      const pick = state.picks.find(
+        (p) => p.teamId === team.id && p.round === round,
+      );
+      const graded = pick ? rowByPick.get(pick.id) : undefined;
+      if (!pick || !graded) {
+        cells.push(
+          <div
+            key={`${round}-${team.id}`}
+            className="min-h-[88px] rounded-lg bg-[var(--surface-2)]/60"
+          >
+            <span className="text-[10px] font-mono text-[var(--muted)]/50 p-1.5 block">
+              {round}.{posInRound}
+            </span>
+          </div>,
+        );
+        return;
+      }
+      const { hg, rank, value } = graded;
+      const out = hg.status === "evicted";
+      cells.push(
+        <button
+          key={`${round}-${team.id}`}
+          type="button"
+          onClick={() => setOpenHg(hg.id)}
+          title={`${displayName(hg.name)} — pick ${pick.overall}, proj ${worth(hg.id)} season pts (#${rank} of ${state.houseguests.length}) → ${value >= 0 ? "+" : ""}${value}`}
+          className="relative flex flex-col px-1.5 pt-1.5 pb-2 min-h-[88px] rounded-lg transition cursor-pointer hover:ring-2 hover:ring-white/30 hover:brightness-110"
+          style={{ background: valueShade(value) }}
+        >
+          <span
+            className={`absolute top-1 right-1.5 text-[10px] font-mono font-bold tabular-nums ${
+              value > 0
+                ? "text-emerald-200"
+                : value < 0
+                  ? "text-red-200"
+                  : "text-[var(--muted)]"
+            }`}
+          >
+            {value >= 0 ? `+${value}` : value}
+          </span>
+          <p
+            className={`w-full px-0.5 text-center font-bold text-[13px] leading-tight truncate ${
+              out ? "line-through opacity-60" : ""
+            }`}
+          >
+            {displayName(hg.name)}
+          </p>
+          <div className="flex-1 grid place-items-center w-full pt-1">
+            <Avatar
+              name={hg.name}
+              src={hg.photoUrl}
+              active={!out}
+              size={44}
+              className="ring-2 ring-black/20"
+            />
+          </div>
+          <p className="w-full text-center text-[10px] font-mono tabular-nums opacity-70 leading-tight pt-0.5">
+            proj {worth(hg.id)}
+          </p>
+        </button>,
+      );
+    });
+  }
+
   return (
     <Card>
       <SectionTitle
         title="Draft report card"
-        subtitle="Re-graded live from Kalshi odds, comp form, and points banked — how each pick looks today, not on draft night."
+        subtitle="Graded live from Kalshi odds, comp form, and points banked — the board shaded by how each pick looks today, not on draft night."
       />
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-        {teamValue.map(({ team, value }) => {
-          const grade = gradeFor(value);
-          return (
-            <div
-              key={team.id}
-              className="rounded-xl bg-[var(--surface-2)] px-2 py-2.5 text-center"
-              style={{ borderTop: `3px solid ${team.color}` }}
-            >
-              <p className="text-sm font-bold truncate">{team.name}</p>
-              <p className={`text-2xl font-black leading-tight ${grade.cls}`}>
-                {grade.letter}
-              </p>
-              <p
-                className="text-[10px] text-[var(--muted)] font-mono tabular-nums"
-                title="Sum over picks of (pick number − current worth); positive means the roster is outplaying its draft slots"
-              >
-                value {value >= 0 ? `+${value}` : value}
-              </p>
-            </div>
-          );
-        })}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: `repeat(${N}, minmax(0, 1fr))`,
+          gap: "4px",
+        }}
+      >
+        {cells}
       </div>
+      <p className="text-[11px] text-[var(--muted)] mt-2 px-1 flex items-center gap-1.5 flex-wrap">
+        <span
+          className="inline-block h-2.5 w-16 rounded-full"
+          style={{
+            background:
+              "linear-gradient(to right, rgba(239,68,68,0.6), var(--surface-2), rgba(16,185,129,0.6))",
+          }}
+        />
+        reach ← draft slot vs. worth today → steal · +N means they&apos;re
+        worth N spots more than where they went.
+      </p>
       {lines.length > 0 && (
         <ul className="mt-3 space-y-1.5 text-sm">
           {lines.map((line, i) => (
             <li key={i}>{line}</li>
           ))}
         </ul>
+      )}
+      {openHg && (
+        <HouseguestCard houseguestId={openHg} onClose={() => setOpenHg(null)} />
       )}
     </Card>
   );
