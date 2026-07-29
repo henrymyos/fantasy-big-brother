@@ -45,19 +45,6 @@ export function defaultRules(): ScoringRule[] {
       description: "Secret power, fan-voted advantage, etc.",
     },
     {
-      id: "r-veto-saved",
-      label: "Saved off the block by veto",
-      points: 4,
-      category: "social",
-    },
-    {
-      id: "r-survive-block",
-      label: "Survive eviction while nominated",
-      points: 5,
-      category: "survival",
-      description: "Was on the block but not evicted.",
-    },
-    {
       id: "r-survive-week",
       label: "Survive the week",
       points: 2,
@@ -93,12 +80,6 @@ export function defaultRules(): ScoringRule[] {
       label: "America's Favorite Player",
       points: 10,
       category: "milestone",
-    },
-    {
-      id: "r-self-evict",
-      label: "Self-evict / expelled",
-      points: -10,
-      category: "penalty",
     },
   ];
 }
