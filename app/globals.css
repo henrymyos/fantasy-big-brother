@@ -1,6 +1,8 @@
 @import "tailwindcss";
 
 :root {
+  /* Native form popups (select option lists, pickers) render dark. */
+  color-scheme: dark;
   --background: #0b1020;
   --surface: #131a2e;
   --surface-2: #1b2440;

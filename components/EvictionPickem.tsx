@@ -190,22 +190,32 @@ export function EvictionPickem() {
                       {currentHg ? displayName(currentHg.name) : "no pick"}
                     </span>
                   ) : (
-                    <select
-                      value={current?.houseguestId ?? ""}
-                      onChange={(e) => {
-                        if (e.target.value)
-                          setEvictionPick(pickWeek, team.id, e.target.value);
-                      }}
-                      className="flex-1 min-w-0 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] px-2 py-1.5 text-sm outline-none focus:border-accent cursor-pointer"
-                      aria-label={`${team.name}'s eviction pick`}
-                    >
-                      <option value="">— pick —</option>
-                      {candidates.map((h) => (
-                        <option key={h.id} value={h.id}>
-                          {displayName(h.name)}
-                        </option>
-                      ))}
-                    </select>
+                    <span className="relative flex-1 min-w-0">
+                      <select
+                        value={current?.houseguestId ?? ""}
+                        onChange={(e) => {
+                          if (e.target.value)
+                            setEvictionPick(pickWeek, team.id, e.target.value);
+                        }}
+                        className={`w-full appearance-none rounded-lg bg-[var(--surface-2)] border border-[var(--border)] pl-2.5 pr-8 py-1.5 text-sm outline-none focus:border-accent cursor-pointer transition-colors hover:brightness-125 ${
+                          current ? "" : "text-[var(--muted)]"
+                        }`}
+                        aria-label={`${team.name}'s eviction pick`}
+                      >
+                        <option value="">Pick who goes home…</option>
+                        {candidates.map((h) => (
+                          <option key={h.id} value={h.id}>
+                            {displayName(h.name)}
+                          </option>
+                        ))}
+                      </select>
+                      <span
+                        className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-[var(--muted)]"
+                        aria-hidden
+                      >
+                        ▼
+                      </span>
+                    </span>
                   )}
                 </label>
               );
