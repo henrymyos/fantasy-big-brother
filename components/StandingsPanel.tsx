@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useStore } from "@/lib/store";
 import { CastList } from "./CastList";
 import { computeStandings, standingsByWeek } from "@/lib/scoring";
@@ -10,6 +11,8 @@ import { DraftReport } from "./DraftReport";
 import { EvictionPickem } from "./EvictionPickem";
 import { HouseguestCard } from "./HouseguestCard";
 import { LeagueChat } from "./LeagueChat";
+import { OddsHistory } from "./OddsHistory";
+import { RevealBanner } from "./RevealBanner";
 import { SeasonStats } from "./SeasonStats";
 import { StandingsChart } from "./StandingsChart";
 import { WeeklyReview } from "./WeeklyReview";
@@ -38,6 +41,7 @@ export function StandingsPanel() {
   return (
     <div className="grid lg:grid-cols-[1fr_330px] gap-5 items-start">
       <div className="space-y-5 min-w-0">
+      <RevealBanner />
       {champ && leader && (
         <Card className="border-yellow-400/40 bg-gradient-to-r from-yellow-400/10 to-transparent">
           <div className="flex items-center gap-4">
@@ -186,9 +190,28 @@ export function StandingsPanel() {
             <StandingsChart data={weekly} />
           </Card>
         )}
+        <OddsHistory />
         <SeasonStats />
         <CastList />
         <DraftReport />
+        <Link
+          href="/awards"
+          className="card p-4 flex items-center gap-3 hover:brightness-125 transition"
+        >
+          <span className="text-2xl" aria-hidden>
+            🏅
+          </span>
+          <span className="flex-1 min-w-0">
+            <span className="block text-sm font-semibold">Season awards</span>
+            <span className="block text-xs text-[var(--muted)]">
+              The trophy room — leaders now, declared for good on finale
+              night.
+            </span>
+          </span>
+          <span className="text-[var(--muted)]" aria-hidden>
+            →
+          </span>
+        </Link>
       </div>
       </div>
 

@@ -170,6 +170,7 @@ function migrate(parsed: Partial<LeagueState>): LeagueState {
     hidden: parsed.hidden ?? [],
     revealed: parsed.revealed ?? null,
     odds: parsed.odds ?? null,
+    oddsHistory: parsed.oddsHistory ?? [],
     predictions: parsed.predictions ?? [],
   };
 }

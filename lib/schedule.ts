@@ -103,6 +103,15 @@ export function evictionAirTime(week: number): number | null {
   return null;
 }
 
+/**
+ * When a gate's results unlocked in the app (its episode's air time + 1
+ * day). Null before any episode airs.
+ */
+export function revealedAtForGate(g: Gate | null): number | null {
+  const air = airTimeForGate(g);
+  return air === null ? null : air + DAY;
+}
+
 /** The furthest gate whose reveal moment (air + 1 day) has passed. */
 export function autoGate(now: number): Gate | null {
   let gate: Gate | null = null;

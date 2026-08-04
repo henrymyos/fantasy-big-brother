@@ -106,6 +106,12 @@ export interface LeagueState {
    * the snapshot this one replaced, kept for movement arrows.
    */
   odds?: (OddsSnapshot & { prev?: OddsSnapshot | null }) | null;
+  /**
+   * Every gate-priced odds snapshot the season has produced, one per
+   * gateKey, oldest first — the raw material for the odds-over-time chart.
+   * Only ever contains already-revealed gates, so it can't spoil.
+   */
+  oddsHistory?: OddsSnapshot[];
   teamCount: number;
   picksPerTeam: number;
   houseguests: Houseguest[];

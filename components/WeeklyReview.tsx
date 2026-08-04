@@ -1,9 +1,19 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import { useStore } from "@/lib/store";
+import { revealedAtForGate } from "@/lib/schedule";
 import { displayName } from "@/lib/wiki";
 import type { LeagueState } from "@/lib/types";
 import { Card, SectionTitle } from "./ui";
+
+// Coarse SSR-safe clock for the "✨ New" glow (0 until hydrated).
+function subscribeClock(cb: () => void): () => void {
+  const id = setInterval(cb, 60_000);
+  return () => clearInterval(id);
+}
+const clockNow = () => Math.floor(Date.now() / 60_000);
+const clockServer = () => 0;
 
 /**
  * Week-by-week review: one card per week, newest on the left, scrolled
@@ -126,8 +136,18 @@ function buildWeek(state: LeagueState, week: number) {
 
 export function WeeklyReview() {
   const { state } = useStore();
+  const minute = useSyncExternalStore(subscribeClock, clockNow, clockServer);
   const lastWeek = state.events.reduce((m, e) => Math.max(m, e.week), 0);
   if (lastWeek === 0 || state.picks.length === 0) return null;
+
+  // The gate week's card glows for a day after its latest reveal landed.
+  const revealedAt = revealedAtForGate(state.revealed);
+  const freshWeek =
+    minute > 0 &&
+    revealedAt !== null &&
+    minute * 60_000 - revealedAt < 24 * 60 * 60 * 1000
+      ? (state.revealed?.week ?? null)
+      : null;
 
   const weeks = Array.from({ length: lastWeek }, (_, i) => lastWeek - i);
 
@@ -145,19 +165,29 @@ export function WeeklyReview() {
           }
           const inProgress =
             state.revealed?.week === week && state.revealed.stage < 3;
+          const fresh = week === freshWeek;
           const best = teamRows[0]?.pts ?? 0;
           return (
             <div
               key={week}
-              className="w-[250px] min-w-[250px] snap-start rounded-xl bg-[var(--surface-2)] p-3 flex flex-col"
+              className={`w-[250px] min-w-[250px] snap-start rounded-xl bg-[var(--surface-2)] p-3 flex flex-col ${
+                fresh ? "ring-1 ring-accent/60" : ""
+              }`}
             >
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center justify-between mb-2 gap-2">
                 <p className="text-sm font-bold">Week {week}</p>
-                {inProgress && (
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-accent">
-                    In progress
-                  </span>
-                )}
+                <span className="flex items-center gap-2">
+                  {fresh && (
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-accent">
+                      ✨ New
+                    </span>
+                  )}
+                  {inProgress && (
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)]">
+                      In progress
+                    </span>
+                  )}
+                </span>
               </div>
               <ul className="space-y-1.5 text-xs flex-1">
                 {lines.map((line) => (

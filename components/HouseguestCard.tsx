@@ -63,6 +63,24 @@ export function HouseguestCard({
     );
   const total = history.reduce((sum, x) => sum + x.rule!.points, 0);
 
+  // Where the points come from: totals per scoring category.
+  const CAT_META: Record<string, { label: string; color: string }> = {
+    comp: { label: "Comps", color: "var(--accent)" },
+    survival: { label: "Survival", color: "#34d399" },
+    milestone: { label: "Milestones", color: "#fbbf24" },
+    social: { label: "Powers & social", color: "#e879f9" },
+    penalty: { label: "Penalties", color: "#f87171" },
+  };
+  const catTotals = new Map<string, number>();
+  for (const x of history) {
+    const c = x.rule!.category;
+    catTotals.set(c, (catTotals.get(c) ?? 0) + x.rule!.points);
+  }
+  const cats = Object.keys(CAT_META)
+    .map((c) => ({ cat: c, ...CAT_META[c], pts: catTotals.get(c) ?? 0 }))
+    .filter((c) => c.pts !== 0);
+  const catPositive = cats.reduce((s, c) => s + Math.max(0, c.pts), 0);
+
   return (
     <div
       className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm grid place-items-center p-4"
@@ -154,6 +172,41 @@ export function HouseguestCard({
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 pb-5">
+          {cats.length > 0 && catPositive > 0 && (
+            <div className="mb-3">
+              <div className="flex h-2 rounded-full overflow-hidden bg-[var(--surface-2)]">
+                {cats
+                  .filter((c) => c.pts > 0)
+                  .map((c) => (
+                    <span
+                      key={c.cat}
+                      style={{
+                        width: `${(c.pts / catPositive) * 100}%`,
+                        background: c.color,
+                      }}
+                      title={`${c.label}: ${c.pts} pts`}
+                    />
+                  ))}
+              </div>
+              <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1.5">
+                {cats.map((c) => (
+                  <span
+                    key={c.cat}
+                    className="inline-flex items-center gap-1.5 text-[11px] text-[var(--muted)]"
+                  >
+                    <span
+                      className="size-2 rounded-full inline-block"
+                      style={{ background: c.color }}
+                    />
+                    {c.label}{" "}
+                    <span className="font-mono tabular-nums font-semibold text-foreground">
+                      {c.pts}
+                    </span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
           {scout && (
             <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/60 p-3.5 mb-3">
               <p className="text-[11px] font-semibold text-[var(--muted)] uppercase tracking-wide">

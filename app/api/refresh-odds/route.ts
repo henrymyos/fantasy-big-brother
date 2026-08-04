@@ -36,7 +36,13 @@ const dollars = (s: string | undefined): number => Number.parseFloat(s ?? "0") |
 const pctFrom = (bid: number, ask: number, last: number): number =>
   Math.round((bid > 0 && ask > 0 ? (bid + ask) / 2 : last) * 100);
 
-/** A market's price at `asOf`, from the last hourly candle at or before it. */
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * A market's price at `asOf`, from the last hourly candle at or before it.
+ * A 30-day lookback finds thinly traded markets' last quote, and 429s are
+ * retried with backoff — Kalshi rate-limits bursts of candlestick reads.
+ */
 async function historicalPct(
   ticker: string,
   asOf: number,
@@ -44,27 +50,32 @@ async function historicalPct(
   const end = Math.floor(asOf / 1000);
   const url =
     `${KALSHI_BASE}/series/${SERIES_TICKER}/markets/${ticker}/candlesticks` +
-    `?start_ts=${end - 3 * 86_400}&end_ts=${end}&period_interval=60`;
-  try {
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) return null;
-    const data = (await res.json()) as {
-      candlesticks?: {
-        yes_bid?: { close_dollars?: string };
-        yes_ask?: { close_dollars?: string };
-        price?: { close_dollars?: string };
-      }[];
-    };
-    const last = data.candlesticks?.[data.candlesticks.length - 1];
-    if (!last) return null;
-    return pctFrom(
-      dollars(last.yes_bid?.close_dollars),
-      dollars(last.yes_ask?.close_dollars),
-      dollars(last.price?.close_dollars),
-    );
-  } catch {
-    return null;
+    `?start_ts=${end - 30 * 86_400}&end_ts=${end}&period_interval=60`;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch(url, { cache: "no-store" });
+      if (res.ok) {
+        const data = (await res.json()) as {
+          candlesticks?: {
+            yes_bid?: { close_dollars?: string };
+            yes_ask?: { close_dollars?: string };
+            price?: { close_dollars?: string };
+          }[];
+        };
+        const last = data.candlesticks?.[data.candlesticks.length - 1];
+        if (!last) return null;
+        return pctFrom(
+          dollars(last.yes_bid?.close_dollars),
+          dollars(last.yes_ask?.close_dollars),
+          dollars(last.price?.close_dollars),
+        );
+      }
+    } catch {
+      // fall through to retry
+    }
+    await sleep(800 * (attempt + 1));
   }
+  return null;
 }
 
 /**
@@ -98,6 +109,7 @@ async function fetchKalshi(
         ? ((await historicalPct(m.ticker, asOf)) ?? live)
         : live;
     out.push({ name: (m.yes_sub_title || m.no_sub_title)!, pct });
+    if (useHistory) await sleep(150); // stay under Kalshi's rate limit
   }
   return out.sort((a, b) => b.pct - a.pct);
 }
@@ -139,12 +151,17 @@ export async function GET(req: Request) {
     // Keep the snapshot being replaced for movement arrows; a forced
     // re-price of the same gate keeps its original `prev` instead.
     const samegate = state.odds?.gateKey === key;
+    const snapshot = { gateKey: key, takenAt: airAt ?? Date.now(), list };
+    // Archive every gate's snapshot (replacing on a same-gate re-price) —
+    // the odds-over-time chart reads this.
+    const history = [
+      ...(state.oddsHistory ?? []).filter((s) => s.gateKey !== key),
+      snapshot,
+    ].sort((a, b) => a.gateKey - b.gateKey);
     const next: LeagueState = {
       ...state,
       odds: {
-        gateKey: key,
-        takenAt: airAt ?? Date.now(),
-        list,
+        ...snapshot,
         prev:
           state.odds && !samegate
             ? {
@@ -154,6 +171,7 @@ export async function GET(req: Request) {
               }
             : (state.odds?.prev ?? null),
       },
+      oddsHistory: history,
     };
     const { data: updated } = await sb
       .from(LEAGUES_TABLE)
