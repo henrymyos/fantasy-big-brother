@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useStore } from "@/lib/store";
 import {
   evictionAirTime,
@@ -9,8 +9,8 @@ import {
   STAGE_LABEL,
 } from "@/lib/schedule";
 import { displayName } from "@/lib/wiki";
-import type { EvictionPrediction } from "@/lib/types";
-import { Card, SectionTitle } from "./ui";
+import type { EvictionPrediction, Houseguest } from "@/lib/types";
+import { Avatar, Card, SectionTitle } from "./ui";
 
 /**
  * Eviction pick'em: everyone calls who goes home. Picks stay editable
@@ -27,6 +27,112 @@ function subscribeClock(cb: () => void): () => void {
 }
 const clockNow = () => Math.floor(Date.now() / 30_000);
 const clockServer = () => 0;
+
+/**
+ * Site-styled replacement for a native <select>: a button that opens a
+ * dark panel of houseguests with avatars. Native option lists can't be
+ * themed, so the list is our own.
+ */
+function EvictionSelect({
+  label,
+  current,
+  candidates,
+  onPick,
+}: {
+  label: string;
+  current: Houseguest | null;
+  candidates: Houseguest[];
+  onPick: (houseguestId: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative flex-1 min-w-0">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={label}
+        className={`w-full flex items-center gap-2 rounded-lg bg-[var(--surface-2)] border px-2.5 py-1.5 text-sm outline-none cursor-pointer transition ${
+          open
+            ? "border-accent"
+            : "border-[var(--border)] hover:brightness-125"
+        }`}
+      >
+        {current ? (
+          <>
+            <Avatar name={current.name} src={current.photoUrl} size={20} />
+            <span className="flex-1 min-w-0 truncate text-left">
+              {displayName(current.name)}
+            </span>
+          </>
+        ) : (
+          <span className="flex-1 min-w-0 truncate text-left text-[var(--muted)]">
+            Pick who goes home…
+          </span>
+        )}
+        <span className="text-[10px] text-[var(--muted)] shrink-0" aria-hidden>
+          {open ? "▲" : "▼"}
+        </span>
+      </button>
+      {open && (
+        <ul
+          role="listbox"
+          aria-label={label}
+          className="absolute z-20 mt-1 left-0 right-0 max-h-60 overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-xl shadow-black/40 p-1"
+        >
+          {candidates.map((h) => {
+            const selected = current?.id === h.id;
+            return (
+              <li key={h.id} role="option" aria-selected={selected}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onPick(h.id);
+                    setOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-left cursor-pointer transition ${
+                    selected
+                      ? "bg-accent/15 text-accent font-semibold"
+                      : "hover:bg-[var(--surface-2)]"
+                  }`}
+                >
+                  <Avatar name={h.name} src={h.photoUrl} size={22} />
+                  <span className="flex-1 min-w-0 truncate">
+                    {displayName(h.name)}
+                  </span>
+                  {selected && (
+                    <span className="text-xs shrink-0" aria-hidden>
+                      ✓
+                    </span>
+                  )}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 export function EvictionPickem() {
   const { state, setEvictionPick } = useStore();
@@ -170,7 +276,7 @@ export function EvictionPickem() {
                 ? hgById.get(current.houseguestId)
                 : null;
               return (
-                <label
+                <div
                   key={team.id}
                   className="flex items-center gap-2 rounded-lg bg-[var(--surface)] px-2.5 py-2"
                 >
@@ -190,34 +296,16 @@ export function EvictionPickem() {
                       {currentHg ? displayName(currentHg.name) : "no pick"}
                     </span>
                   ) : (
-                    <span className="relative flex-1 min-w-0">
-                      <select
-                        value={current?.houseguestId ?? ""}
-                        onChange={(e) => {
-                          if (e.target.value)
-                            setEvictionPick(pickWeek, team.id, e.target.value);
-                        }}
-                        className={`w-full appearance-none rounded-lg bg-[var(--surface-2)] border border-[var(--border)] pl-2.5 pr-8 py-1.5 text-sm outline-none focus:border-accent cursor-pointer transition-colors hover:brightness-125 ${
-                          current ? "" : "text-[var(--muted)]"
-                        }`}
-                        aria-label={`${team.name}'s eviction pick`}
-                      >
-                        <option value="">Pick who goes home…</option>
-                        {candidates.map((h) => (
-                          <option key={h.id} value={h.id}>
-                            {displayName(h.name)}
-                          </option>
-                        ))}
-                      </select>
-                      <span
-                        className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-[var(--muted)]"
-                        aria-hidden
-                      >
-                        ▼
-                      </span>
-                    </span>
+                    <EvictionSelect
+                      label={`${team.name}'s eviction pick`}
+                      current={currentHg ?? null}
+                      candidates={candidates}
+                      onPick={(hgId) =>
+                        setEvictionPick(pickWeek, team.id, hgId)
+                      }
+                    />
                   )}
-                </label>
+                </div>
               );
             })}
           </div>
