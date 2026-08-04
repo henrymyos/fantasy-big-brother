@@ -158,10 +158,10 @@ export function StandingsPanel() {
 
       <EvictionPickem />
       <WeeklyReview />
+      <WinnerOdds />
 
       {/* The occasional-reading half of the page, tucked behind a toggle so
-          the daily check-in stays short. Kept mounted while hidden so the
-          odds card's refresh ping still runs. */}
+          the daily check-in stays short. */}
       <button
         type="button"
         onClick={() => setDeepDive((v) => !v)}
@@ -189,7 +189,6 @@ export function StandingsPanel() {
         <SeasonStats />
         <CastList />
         <DraftReport />
-        <WinnerOdds />
       </div>
       </div>
 
