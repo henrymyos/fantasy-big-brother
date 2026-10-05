@@ -44,14 +44,25 @@ directly, and the milestones are derived from the eviction order:
 | Win Power of Veto | +8 | voting-history table |
 | Win other competition | +4 | voting-history table |
 | Survive the week | +2 | still in the house at the end of a completed week |
-| Make it to Jury | +5 | among the final 11 (9 jurors + 2 finalists) |
+| Make it to Jury | +5 | jurors + the 2 finalists (jury size read from the article — BB28 had 7) |
 | Reach Final 3 | +10 | among the final 3 |
 | Runner-up (Final 2) | +20 | cast table |
 | Win Big Brother | +40 | cast table |
 | America's Favorite Player | +10 | infobox |
 
-(The derivation was verified against the finished Big Brother 26 season —
-it reproduces the real jury of nine, first juror included.) There's no
+Comp wins are filed under their real week: Wikipedia splits double-eviction
+and finale weeks into two columns, so the parser reads each column's week
+from the table header (and follows row/column spans) rather than counting
+columns. Checked against the finished BB28 and BB26 articles.
+
+### Season over
+
+BB28 finished on October 1, 2026 (Rick Devens won 6–1 over Taylor Brown and
+took America's Favorite). Once there's a winner the app switches to its
+final state: the schedule stops at the finale (week 12), the standings crown
+the family champion, the eviction pick'em shows its final scoreboard, the
+Kalshi odds card retires (its history stays in the deep dive) and the daily
+odds cron becomes a no-op. The awards page declares every award final. There's no
 manual scorekeeping — no houseguest management either; evictions, statuses,
 photos and comp wins all flow in on their own.
 

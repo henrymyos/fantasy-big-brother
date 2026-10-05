@@ -140,7 +140,9 @@ export function EvictionPickem() {
 
   if (bucket === 0) return null; // server render / first hydration frame
   if (state.picks.length === 0) return null;
-  if (state.houseguests.some((h) => h.status === "winner")) return null;
+  // Once there's a winner the season is over: no more picks, but the final
+  // scoreboard stays up.
+  const seasonOver = state.houseguests.some((h) => h.status === "winner");
   const gate = state.revealed;
   if (!gate) return null; // no-gate mode: results land instantly, no game
 
@@ -148,7 +150,7 @@ export function EvictionPickem() {
   // The week whose eviction is still unseen: the gate week until its full
   // reveal, then the next one.
   const pickWeek = gate.stage >= 3 ? gate.week + 1 : gate.week;
-  const lockAt = evictionAirTime(pickWeek);
+  const lockAt = seasonOver ? null : evictionAirTime(pickWeek);
   const locked = lockAt === null || now >= lockAt;
 
   const effective = new Map<string, EvictionPrediction>();
@@ -213,13 +215,21 @@ export function EvictionPickem() {
     });
   // "When does the site update next?" — lives here since it's the same
   // rhythm the pick'em runs on.
-  const next = nextRevealAfter(gate);
+  const next = seasonOver ? null : nextRevealAfter(gate);
+  const best = Math.max(0, ...state.teams.map((t) => tally.get(t.id) ?? 0));
+  const leaders = state.teams.filter((t) => (tally.get(t.id) ?? 0) === best && best > 0);
 
   return (
     <Card>
       <SectionTitle
         title="Eviction pick'em"
-        subtitle="Call who goes home. Picks lock when the live show starts; the scoreboard settles at the Friday reveal."
+        subtitle={
+          seasonOver
+            ? leaders.length
+              ? `Final scoreboard — ${leaders.map((t) => t.name).join(" & ")} called the most evictions (${best}).`
+              : "Final scoreboard."
+            : "Call who goes home. Picks lock when the live show starts; the scoreboard settles at the Friday reveal."
+        }
         right={
           anyHistory ? (
             <div className="flex items-center gap-2.5">

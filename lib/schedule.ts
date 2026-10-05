@@ -15,6 +15,12 @@ export interface Gate {
 }
 
 const DAY = 86_400_000;
+
+/**
+ * The finale week: BB28 ended Thursday Oct 1 2026 (week 12's Thursday slot),
+ * so the schedule stops there — no phantom weeks 13–15 to count down to.
+ */
+export const FINALE_WEEK = 12;
 const at = (y: number, mo: number, d: number, h: number): number =>
   Date.UTC(y, mo - 1, d, h);
 
@@ -25,8 +31,8 @@ function buildSchedule(): { t: number; gate: Gate }[] {
     { t: at(2026, 7, 16, 0) + DAY, gate: { week: 1, stage: 2 } }, // Wed 7/15 ep
     { t: at(2026, 7, 17, 1) + DAY, gate: { week: 1, stage: 3 } }, // Thu 7/16 ep
   ];
-  // Weeks 2+ repeat weekly from Sun 7/19, Wed 7/22, Thu 7/23.
-  for (let w = 2; w <= 15; w++) {
+  // Weeks 2+ repeat weekly from Sun 7/19, Wed 7/22, Thu 7/23, through the finale.
+  for (let w = 2; w <= FINALE_WEEK; w++) {
     const off = (w - 2) * 7 * DAY;
     list.push({ t: at(2026, 7, 20, 0) + off + DAY, gate: { week: w, stage: 1 } });
     list.push({ t: at(2026, 7, 23, 0) + off + DAY, gate: { week: w, stage: 2 } });

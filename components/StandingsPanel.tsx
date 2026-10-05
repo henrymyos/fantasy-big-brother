@@ -45,13 +45,20 @@ export function StandingsPanel() {
       {champ && leader && (
         <Card className="border-yellow-400/40 bg-gradient-to-r from-yellow-400/10 to-transparent">
           <div className="flex items-center gap-4">
-            <div className="text-4xl">👑</div>
-            <div>
-              <p className="text-sm text-[var(--muted)]">
-                {champ.name} won Big Brother
+            <div className="text-4xl" aria-hidden>🏆</div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold uppercase tracking-wide text-yellow-300/90">
+                Season over
               </p>
-              <p className="text-lg font-semibold">
-                Drafted by{" "}
+              <p className="text-xl font-bold">
+                {leader.team.name} wins the league
+                <span className="text-[var(--muted)] font-normal text-base">
+                  {" "}· {leader.points} pts
+                  {standings[1] ? ` · ${leader.points - standings[1].points} ahead of ${standings[1].team.name}` : ""}
+                </span>
+              </p>
+              <p className="text-sm text-[var(--muted)] mt-0.5">
+                👑 {champ.name} won Big Brother — drafted by{" "}
                 {state.teams.find(
                   (t) =>
                     t.id ===
@@ -60,6 +67,12 @@ export function StandingsPanel() {
                 )?.name ?? "nobody"}
               </p>
             </div>
+            <Link
+              href="/awards"
+              className="shrink-0 text-sm font-semibold text-yellow-300 hover:underline hidden sm:block"
+            >
+              Final awards →
+            </Link>
           </div>
         </Card>
       )}
@@ -204,8 +217,9 @@ export function StandingsPanel() {
           <span className="flex-1 min-w-0">
             <span className="block text-sm font-semibold">Season awards</span>
             <span className="block text-xs text-[var(--muted)]">
-              The trophy room — leaders now, declared for good on finale
-              night.
+              {champ
+                ? "The trophy room — every award, final."
+                : "The trophy room — leaders now, declared for good on finale night."}
             </span>
           </span>
           <span className="text-[var(--muted)]" aria-hidden>

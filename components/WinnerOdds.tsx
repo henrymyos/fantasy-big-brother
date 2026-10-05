@@ -23,10 +23,14 @@ export function WinnerOdds() {
   // an early update).
   const currentKey = gateKey(state.revealed);
   const stale = !snapshot || snapshot.gateKey !== currentKey;
+  const over = state.houseguests.some((h) => h.status === "winner");
   useEffect(() => {
-    if (stale) pingOddsRefresh();
-  }, [stale]);
+    if (stale && !over) pingOddsRefresh();
+  }, [stale, over]);
 
+  // The season's decided — the betting market is over (the odds-over-time
+  // chart in the deep dive keeps the history).
+  if (state.houseguests.some((h) => h.status === "winner")) return null;
   if (!snapshot || snapshot.list.length === 0) return null;
 
   const teamByHg = new Map(

@@ -30,10 +30,21 @@ export interface WikiSeason {
   runnerUp: string | null;
   americasFavorite: string | null;
   cast: WikiCastMember[];
-  /** One entry per competition win (a name may repeat). */
-  hohWins: string[];
-  vetoWins: string[];
-  otherCompWins: string[];
+  /**
+   * One entry per competition win (a name may repeat), tagged with the real
+   * week it happened in. Double-eviction and finale weeks have two columns in
+   * Wikipedia's table, so column order is NOT the week number.
+   */
+  hohWins: CompWin[];
+  vetoWins: CompWin[];
+  otherCompWins: CompWin[];
+  /** Jurors (not counting the two finalists), when the article states it. */
+  jurySize: number | null;
+}
+
+export interface CompWin {
+  name: string;
+  week: number;
 }
 
 /**
@@ -197,6 +208,7 @@ export async function fetchSeason(input: string): Promise<WikiSeason> {
     americasFavorite: infobox.americasFavorite,
     cast,
     ...comps,
+    jurySize: parseJurySize(wikitext),
   };
 }
 
@@ -405,9 +417,9 @@ function resultFromRow(row: string): {
 /* ------------------------------------------------------------------ */
 
 function parseVotingHistory(wikitext: string): {
-  hohWins: string[];
-  vetoWins: string[];
-  otherCompWins: string[];
+  hohWins: CompWin[];
+  vetoWins: CompWin[];
+  otherCompWins: CompWin[];
 } {
   const empty = { hohWins: [], vetoWins: [], otherCompWins: [] };
   const body = sectionBody(wikitext, /==\s*Voting history\s*==/i);
@@ -419,56 +431,111 @@ function parseVotingHistory(wikitext: string): {
   // introduces the per-houseguest vote rows.
   const dividerIdx = table.search(/\n\|-[^\n]*border-top:\s*5px/i);
   const header = dividerIdx === -1 ? table : table.slice(0, dividerIdx);
+  const rows = header.split(/\n\|-/).map(rowCells);
 
-  const chunks = header.split(/\n\|-/);
-  const hohWins: string[] = [];
-  const vetoWins: string[] = [];
-  const otherCompWins: string[] = [];
-
-  for (const chunk of chunks) {
-    const label = rowLabel(chunk);
-    if (!label) continue;
-    if (/votes? to|nomination/i.test(label)) continue;
-
-    if (/head of household/i.test(label)) {
-      hohWins.push(...rowNames(chunk));
-    } else if (/veto/i.test(label) && /winner/i.test(label)) {
-      vetoWins.push(...rowNames(chunk));
-    } else if (/winner/i.test(label)) {
-      // Block Buster / AI Arena / Safety / other competition winners.
-      otherCompWins.push(...rowNames(chunk));
+  // Column → week, from the "Week N" header row (a split week spans two
+  // columns: double evictions, twist eliminations, the two-part finale).
+  const weekRow = rows.find((r) => r.some((c) => c.header && /week\s*\d+/i.test(c.text)));
+  const colWeek: number[] = [];
+  if (weekRow) {
+    for (const c of weekRow) {
+      if (!c.header) continue;
+      const m = c.text.match(/week\s*(\d+)/i);
+      if (!m && !/finale|final/i.test(c.text)) continue; // the blank corner cell
+      const w = m ? Number(m[1]) : (colWeek[colWeek.length - 1] ?? 1);
+      for (let k = 0; k < c.colspan; k++) colWeek.push(w);
     }
+  }
+  const weekOf = (col: number): number =>
+    colWeek[col] ?? (colWeek.length ? colWeek[colWeek.length - 1] : col + 1);
+
+  const hohWins: CompWin[] = [];
+  const vetoWins: CompWin[] = [];
+  const otherCompWins: CompWin[] = [];
+  // Rowspans carry a cell down into the rows below it, occupying its columns.
+  let pending: number[] = [];
+
+  for (const cells of rows) {
+    const labelCell = cells.find((c) => c.header);
+    const label = labelCell?.text.replace(/\n/g, " ").trim() ?? "";
+    if (!labelCell || /week\s*\d+|^day\s*\d+/i.test(label) || label === "") {
+      continue; // column-header rows, not data
+    }
+    const target = /votes? to|nomination/i.test(label)
+      ? null
+      : /head of household/i.test(label)
+        ? hohWins
+        : /veto/i.test(label) && /winner/i.test(label)
+          ? vetoWins
+          : /winner/i.test(label)
+            ? otherCompWins // Block Buster / AI Arena / Safety / other comps
+            : null;
+
+    const next = pending.map((n) => Math.max(0, n - 1));
+    let col = 0;
+    for (const c of cells) {
+      if (c.header) continue;
+      while ((pending[col] ?? 0) > 0) col++;
+      if (target) {
+        for (const piece of c.text.split("\n")) {
+          const name = piece.trim();
+          if (!name || /^\(?none\)?$/i.test(name)) continue;
+          if (/no vote|votes|day \d|^—$|^-$/i.test(name)) continue;
+          target.push({ name, week: weekOf(col) });
+        }
+      }
+      for (let k = 0; k < c.colspan; k++) {
+        if (c.rowspan > 1) next[col + k] = c.rowspan - 1;
+      }
+      col += c.colspan;
+    }
+    pending = next;
   }
   return { hohWins, vetoWins, otherCompWins };
 }
 
-/** The row's header label (the "! scope=row | …" cell). */
-function rowLabel(chunk: string): string | null {
-  const line = chunk.split("\n").find((l) => /^\s*!/.test(l));
-  if (!line) return null;
-  return cellContent(line).replace(/\n/g, " ").trim();
+interface Cell {
+  header: boolean;
+  text: string;
+  colspan: number;
+  rowspan: number;
 }
 
-/** Every houseguest name appearing in a structural row's data cells. */
-function rowNames(chunk: string): string[] {
-  const lines = chunk.split("\n");
-  const names: string[] = [];
-  let started = false;
-  for (const line of lines) {
-    if (/^\s*!/.test(line)) {
-      started = true; // header cell — data cells follow
-      continue;
-    }
-    if (!started) continue;
-    if (!/^\s*\|/.test(line)) continue;
-    const content = cellContent(line);
-    for (const piece of content.split("\n")) {
-      const name = piece.trim();
-      if (!name) continue;
-      if (/^\(?none\)?$/i.test(name)) continue;
-      if (/no vote|votes|day \d|^—$|^-$/i.test(name)) continue;
-      names.push(name);
+/** A table row's cells, with spans (continuation lines join their cell). */
+function rowCells(chunk: string): Cell[] {
+  const cells: { raw: string; header: boolean }[] = [];
+  for (const line of chunk.split("\n")) {
+    if (/^\s*[|!]/.test(line) && !/^\s*\|[-}+]/.test(line)) {
+      const header = /^\s*!/.test(line);
+      // "a || b" / "!a !! b" put several cells on one line.
+      const parts = line.replace(/^\s*[|!]/, "").split(header ? /!!|\|\|/ : /\|\|/);
+      for (const part of parts) cells.push({ raw: part, header });
+    } else if (cells.length) {
+      cells[cells.length - 1].raw += "\n" + line;
     }
   }
-  return names;
+  return cells.map(({ raw, header }) => {
+    let attrs = "";
+    const sep = topLevelPipe(raw);
+    if (sep !== -1 && /=|bgcolor|colspan|rowspan|align|width|scope/i.test(raw.slice(0, sep))) {
+      attrs = raw.slice(0, sep);
+    }
+    const span = (name: string) => {
+      const m = attrs.match(new RegExp(`${name}\\s*=\\s*"?(\\d+)`, "i"));
+      return m ? Math.max(1, Number(m[1])) : 1;
+    };
+    return { header, text: cellContent("|" + raw), colspan: span("colspan"), rowspan: span("rowspan") };
+  });
 }
+
+/** "The last seven evicted HouseGuests comprise the Jury" → 7. */
+const NUMBER_WORDS: Record<string, number> = {
+  five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12,
+};
+export function parseJurySize(wikitext: string): number | null {
+  const m = wikitext.match(/last\s+(\w+)\s+evicted\s+houseguests\s+(?:comprise|form|make up|become)\s+the\s+jury/i);
+  if (!m) return null;
+  const n = /^\d+$/.test(m[1]) ? Number(m[1]) : NUMBER_WORDS[m[1].toLowerCase()];
+  return n && n >= 3 && n <= 15 ? n : null;
+}
+

@@ -165,18 +165,23 @@ export function applyWikiSeason(
     });
   }
 
-  season.hohWins.forEach((n, i) => push(n, "hoh", i + 1));
-  season.vetoWins.forEach((n, i) => push(n, "veto", i + 1));
-  season.otherCompWins.forEach((n, i) => push(n, "comp", i + 1));
-  const finaleWeek = Math.max(1, season.hohWins.length);
+  // Each win carries its real week (split weeks have two columns on
+  // Wikipedia, so column order isn't the week).
+  for (const w of season.hohWins) push(w.name, "hoh", w.week);
+  for (const w of season.vetoWins) push(w.name, "veto", w.week);
+  for (const w of season.otherCompWins) push(w.name, "comp", w.week);
+  const compWeeks = [...season.hohWins, ...season.vetoWins, ...season.otherCompWins].map((w) => w.week);
+  const lastCompWeek = compWeeks.length ? Math.max(...compWeeks) : 1;
+  const finaleWeek = Math.max(1, lastCompWeek);
   if (season.winner) push(season.winner, "winner", finaleWeek);
   if (season.runnerUp) push(season.runnerUp, "runnerup", finaleWeek);
   if (season.americasFavorite)
     push(season.americasFavorite, "afp", finaleWeek);
 
-  // Derived milestones. Jury = the final 11 (9 jurors + 2 finalists, the
-  // modern US format); adjust MAKES_JURY if a twist changes the jury size.
-  const MAKES_JURY = 11;
+  // Derived milestones. Jury = the jurors plus the two finalists. The article
+  // states the jury size ("The last seven evicted HouseGuests comprise the
+  // Jury" — BB28 had 7); without that, assume the modern 9-person jury.
+  const MAKES_JURY = (season.jurySize ?? 9) + 2;
   const FINAL = 3;
   const T = season.cast.length;
   const evictions = season.cast
@@ -227,7 +232,7 @@ export function applyWikiSeason(
     ...s,
     houseguests: nextHouseguests,
     events: [...manual, ...wikiEvents],
-    currentWeek: Math.max(s.currentWeek, season.hohWins.length || 1),
+    currentWeek: Math.max(1, lastCompWeek),
   };
   return JSON.stringify(next) === JSON.stringify(s) ? s : next;
 }

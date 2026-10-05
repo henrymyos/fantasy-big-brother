@@ -133,6 +133,11 @@ export async function GET(req: Request) {
       .maybeSingle();
     if (!data) return NextResponse.json({ ok: false, reason: "no-league" });
     const state = data.state as LeagueState;
+    // Season over: the market has settled, so stop re-pricing (the daily
+    // cron keeps hitting this; it's now a no-op).
+    if (!force && state.houseguests?.some((h) => h.status === "winner")) {
+      return NextResponse.json({ ok: true, skipped: true, reason: "season-over" });
+    }
 
     const auto = autoGate(Date.now());
     const effective = state.revealed
