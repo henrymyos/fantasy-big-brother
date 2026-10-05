@@ -13,7 +13,7 @@ import { fetchHouseguestPhoto } from "./photos";
 import { snakeOrder, teamOnTheClock } from "./scoring";
 import { autoGate, eventStage, evictionAirTime, maxGate } from "./schedule";
 import { applyWikiSeason } from "./sync";
-import { fetchSeason } from "./wiki";
+import { fetchSeason, type WikiSeason } from "./wiki";
 import {
   FAMILY_LEAGUE_ID,
   isSupabaseConfigured,
@@ -194,6 +194,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const channelRef = useRef<RealtimeChannel | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stateRef = useRef(state);
+  // The latest Wikipedia season this tab fetched. Re-applied whenever a server
+  // copy is adopted, so a slower load (or another device's older write) can't
+  // roll the synced results back — every device derives the same events.
+  const wikiSeasonRef = useRef<WikiSeason | null>(null);
+  const withWiki = (st: LeagueState): LeagueState =>
+    wikiSeasonRef.current ? applyWikiSeason(st, wikiSeasonRef.current) : st;
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
@@ -232,7 +238,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         lastSyncedJson.current !== null &&
         JSON.stringify(stateRef.current) !== lastSyncedJson.current;
       lastSyncedJson.current = serverJson;
-      setState(hasLocalEdits ? mergeStates(server, stateRef.current) : server);
+      setState(withWiki(hasLocalEdits ? mergeStates(server, stateRef.current) : server));
     };
 
     // A tab that slept through realtime messages (phone locked, laptop lid)
@@ -272,7 +278,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       }
       revRef.current = row.rev;
       lastSyncedJson.current = JSON.stringify(row.state);
-      setState(migrate(row.state));
+      setState(withWiki(migrate(row.state)));
 
       channelRef.current = sb
         .channel("family-league")
@@ -319,6 +325,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         const season = await fetchSeason(WIKI_SEASON);
         if (stop) return;
         if (season.cast.length > 0) {
+          wikiSeasonRef.current = season;
           setState((s) => applyWikiSeason(s, season));
         }
         setWikiError(null);
@@ -426,7 +433,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       revRef.current = row.rev;
       const server = migrate(row.state);
       lastSyncedJson.current = JSON.stringify(server);
-      setState(mergeStates(server, stateRef.current));
+      setState(withWiki(mergeStates(server, stateRef.current)));
       setSyncStatus("online");
     }, 600);
   }, [state, loaded, connected]);
