@@ -7,6 +7,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import { defaultState, defaultTeams, TEAM_COLORS } from "./defaults";
 import { fetchHouseguestPhoto } from "./photos";
@@ -36,6 +37,7 @@ const WIKI_SEASON = "Big Brother 28 (American season)";
 const WIKI_SYNC_INTERVAL_MS = 5 * 60_000;
 
 const STORAGE_KEY = "fbb:league:v1";
+const noopSubscribe = () => () => {};
 
 export type SyncStatus = "local" | "connecting" | "online" | "saving" | "error";
 
@@ -209,16 +211,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(id);
   }, []);
 
-  // On mount: hydrate the local cache.
-  useEffect(() => {
+  // First client render after hydration: hydrate the local cache. SSR and the
+  // hydration render see defaultState, so the markup matches; state is then
+  // adjusted during render (per the React docs) instead of in an effect.
+  const isClient = useSyncExternalStore(noopSubscribe, () => true, () => false);
+  if (isClient && !loaded) {
+    setLoaded(true);
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) setState(migrate(JSON.parse(raw)));
     } catch {
       // ignore corrupt cache
     }
-    setLoaded(true);
-  }, []);
+  }
 
   // Connect to the one family league: load it (seeding the row on the very
   // first visit), then subscribe to realtime changes from other devices.
