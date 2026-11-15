@@ -136,7 +136,7 @@ function DraftGrid({
             key={`${round}-${team.id}`}
             className={`flex flex-col p-1.5 min-h-[88px] rounded-lg bg-[var(--surface-2)]/60 transition${dim}`}
           >
-            <span className="text-[10px] font-mono text-[var(--muted)]/50">
+            <span className="text-[10px] font-mono text-[var(--muted)]/90">
               {pickLabel}
             </span>
           </div>,
