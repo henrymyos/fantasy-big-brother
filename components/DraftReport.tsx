@@ -165,7 +165,7 @@ export function DraftReport() {
             key={`${round}-${team.id}`}
             className="min-h-[88px] rounded-lg bg-[var(--surface-2)]/60"
           >
-            <span className="text-[10px] font-mono text-[var(--muted)]/50 p-1.5 block">
+            <span className="text-[10px] font-mono text-[var(--muted)]/90 p-1.5 block">
               {round}.{posInRound}
             </span>
           </div>,

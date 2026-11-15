@@ -29,6 +29,7 @@ export default function Home() {
     <div className="flex flex-col min-h-dvh">
       {/* Header */}
       <header className="sticky top-0 z-10 backdrop-blur bg-[var(--background)]/80 border-b border-[var(--border)]">
+        <h1 className="sr-only">Fantasy Big Brother</h1>
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3 flex-wrap">
           <div className="size-9 rounded-full grid place-items-center bg-accent/15 text-xl">
             👁️
