@@ -13,15 +13,20 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const description =
+  "Draft houseguests, track a custom scoring system, and follow eliminations all season long.";
+
 export const metadata: Metadata = {
   title: "Fantasy Big Brother",
-  description:
-    "Draft houseguests, track a custom scoring system, and follow eliminations all season long.",
+  description,
   appleWebApp: {
     capable: true,
     title: "Fantasy BB",
     statusBarStyle: "black-translucent",
   },
+  // Link previews (iMessage, Slack, Discord): text card, no image.
+  openGraph: { title: "Fantasy Big Brother", description, siteName: "Fantasy Big Brother", type: "website" },
+  twitter: { card: "summary", title: "Fantasy Big Brother", description },
 };
 
 export const viewport: Viewport = {
