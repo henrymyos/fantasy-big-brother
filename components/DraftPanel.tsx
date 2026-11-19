@@ -125,7 +125,9 @@ function DraftGrid({
             <span className="absolute top-1.5 left-1.5 text-accent text-[10px] font-mono">
               {pickLabel}
             </span>
-            <span className="text-accent text-xs font-bold animate-pulse">
+            <span className="text-center text-accent text-xs font-bold">
+              {/* pulse the dot, not the text, so the label keeps full contrast */}
+              <span aria-hidden className="inline-block size-1.5 mr-1 align-middle rounded-full bg-current motion-safe:animate-pulse" />
               On the clock
             </span>
           </div>,
@@ -200,12 +202,15 @@ export function DraftPanel() {
                   Round {clock.round} · Pick {clock.overall} of {totalPicks}
                 </span>
                 <span
-                  className="text-xs px-2 py-0.5 rounded-full font-semibold animate-pulse"
-                  style={{
-                    background: `${onClockTeam?.color ?? "#888"}26`,
-                    color: onClockTeam?.color,
-                  }}
+                  className="inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full font-semibold text-foreground"
+                  style={{ background: `${onClockTeam?.color ?? "#888"}26` }}
                 >
+                  {/* team colour on the dot only: some team colours are too dark for 12 px text */}
+                  <span
+                    aria-hidden
+                    className="size-2 rounded-full motion-safe:animate-pulse"
+                    style={{ background: onClockTeam?.color ?? "#888" }}
+                  />
                   {`${(onClockTeam?.name ?? "").toUpperCase()} IS ON THE CLOCK`}
                 </span>
               </>
