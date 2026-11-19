@@ -36,18 +36,6 @@ export function Button({
   );
 }
 
-export function Input({
-  className = "",
-  ...props
-}: React.InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <input
-      className={`w-full rounded-lg bg-[var(--surface-2)] border border-[var(--border)] px-3 py-2 text-sm outline-none focus:border-accent placeholder:text-[var(--muted)] ${className}`}
-      {...props}
-    />
-  );
-}
-
 export function Card({
   className = "",
   children,
