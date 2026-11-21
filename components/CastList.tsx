@@ -8,6 +8,7 @@ import { displayName } from "@/lib/wiki";
 import type { Houseguest } from "@/lib/types";
 import { HouseguestCard } from "./HouseguestCard";
 import { Avatar, Card, SectionTitle } from "./ui";
+import { readableInk } from "@/lib/ink";
 
 /**
  * The whole cast in one table: points banked so far next to the sim's
@@ -100,7 +101,7 @@ export function CastList() {
                     className={`flex-1 min-w-0 truncate text-sm font-medium ${
                       out ? "line-through opacity-60" : ""
                     }`}
-                    style={team ? { color: team.color } : undefined}
+                    style={team ? { color: readableInk(team.color) } : undefined}
                   >
                     {displayName(hg.name)}
                   </span>
