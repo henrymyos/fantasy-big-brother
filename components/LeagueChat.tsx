@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { FAMILY_LEAGUE_ID, isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { Card, SectionTitle } from "./ui";
+import { readableInk } from "@/lib/ink";
 
 const MESSAGES_TABLE = "bb_messages";
 const NAME_KEY = "fbb:chatName";
@@ -140,7 +141,7 @@ export function LeagueChat() {
             <div key={m.id} className="text-sm leading-snug">
               <span
                 className="font-semibold mr-1.5"
-                style={{ color: authorColor(m.author) }}
+                style={{ color: readableInk(authorColor(m.author)) }}
               >
                 {m.author}
               </span>

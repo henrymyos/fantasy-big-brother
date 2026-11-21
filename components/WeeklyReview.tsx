@@ -6,6 +6,7 @@ import { revealedAtForGate } from "@/lib/schedule";
 import { displayName } from "@/lib/wiki";
 import type { LeagueState } from "@/lib/types";
 import { Card, SectionTitle } from "./ui";
+import { readableInk } from "@/lib/ink";
 
 // Coarse SSR-safe clock for the "✨ New" glow (0 until hydrated).
 function subscribeClock(cb: () => void): () => void {
@@ -157,7 +158,12 @@ export function WeeklyReview() {
         title="Week by week"
         subtitle="Newest first — scroll right for earlier weeks."
       />
-      <div className="flex gap-2 overflow-x-auto snap-x pb-1 -mx-1 px-1">
+      <div
+        className="flex gap-2 overflow-x-auto snap-x pb-1 -mx-1 px-1"
+        tabIndex={0}
+        role="region"
+        aria-label="Week by week"
+      >
         {weeks.map((week) => {
           const { lines, teamRows } = buildWeek(state, week);
           if (lines.length === 0 && teamRows.every((r) => r.pts === 0)) {
@@ -199,7 +205,7 @@ export function WeeklyReview() {
                         <span key={i} className="font-semibold">
                           <span
                             style={
-                              chunk.color ? { color: chunk.color } : undefined
+                              chunk.color ? { color: readableInk(chunk.color) } : undefined
                             }
                           >
                             {chunk.text}
