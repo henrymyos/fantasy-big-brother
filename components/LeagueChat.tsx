@@ -154,14 +154,14 @@ export function LeagueChat() {
         )}
       </div>
       <div className="mt-3 space-y-2">
-        <input
+        <input aria-label="Your name"
           ref={nameRef}
           placeholder="Your name"
           maxLength={40}
           className="w-full rounded-lg bg-[var(--surface-2)] border border-[var(--border)] px-3 py-1.5 text-xs outline-none focus:border-accent placeholder:text-[var(--muted)]"
         />
         <div className="flex gap-2">
-          <input
+          <input aria-label="Message"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
